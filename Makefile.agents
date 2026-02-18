@@ -40,6 +40,10 @@ endif
 lint: ## Run lint agent.
 	$(DA_PHP_CMD) $(AGENTS_BIN)/da-lint
 
+.PHONY: lint-fix
+lint-fix: ## Run linters and launch Claude Code to fix issues interactively.
+	$(DA_PHP_CMD) $(AGENTS_BIN)/da-lint-fix
+
 .PHONY: release
 release: ## Run release agent.
 	$(DA_PHP_CMD) $(AGENTS_BIN)/da-release
