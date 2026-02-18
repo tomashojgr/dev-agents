@@ -12,10 +12,17 @@ class Installer
     private const MAKEFILE = 'Makefile';
     private const CONFIG_FILE = '.dev-agents.json';
     private const CONFIG_STUB = <<<'JSON'
-    {
-        "ai": "claude"
-    }
-    JSON;
+{
+    "ai": "claude",
+    "runner": null,
+    "php": "php",
+    "spec": {
+        "language": "en",
+        "default_scope": []
+    },
+    "lint": {}
+}
+JSON;
 
     public static function run(IOInterface $io): void
     {

@@ -61,57 +61,32 @@ make release
 
 ## Configuration
 
-Create `.dev-agents.json` in your project root to customize behaviour:
+`.dev-agents.json` is created automatically in your project root on install. All keys are optional — remove or leave any key at its default value.
 
 ```json
 {
-    "runner": "make bash cmd=\"{cmd}\"",
+    "ai": "claude",
+    "runner": null,
     "php": "php",
-    "lint": {
-        "phpstan": {
-            "cmd": "vendor/bin/phpstan analyse --no-progress --configuration=phpstan.neon"
-        },
-        "phpcs": {
-            "cmd": "vendor/bin/phpcs --standard=PSR12 src/"
-        }
-    },
     "spec": {
-        "language": "cs",
-        "default_scope": ["src/", "tests/"]
-    }
+        "language": "en",
+        "default_scope": []
+    },
+    "lint": {}
 }
 ```
 
-| Key | Description | Default |
-|-----|-------------|---------|
-| `runner` | Shell template wrapping every command. Use `{cmd}` as placeholder. | direct execution |
-| `php` | PHP binary. Wrapped by `runner` if set. | `php` |
-| `ai` | AI backend: `claude`, `codex`, or `custom` | `claude` |
-| `ai_commands.print` | Non-interactive command (only when `"ai": "custom"`) | — |
-| `ai_commands.interactive` | Interactive command (only when `"ai": "custom"`) | — |
-| `lint.*.cmd` | Override lint tool commands. If omitted, tools are auto-detected. | auto-detect |
-| `spec.language` | Language for generated task specs (`en`, `cs`, …) | `en` |
-| `spec.default_scope` | Paths always included in new task Scope sections | `[]` |
+| Key | Description | Values / example |
+|-----|-------------|-----------------|
+| `ai` | AI backend | `"claude"` (default), `"codex"`, or `"custom"` |
+| `ai_commands` | Custom AI commands — only when `"ai": "custom"` | `{"print": "my-ai --output", "interactive": "my-ai"}` |
+| `runner` | Shell wrapper for every command. `{cmd}` is replaced with the actual command. | `"make bash cmd=\"{cmd}\""` |
+| `php` | PHP binary, wrapped by `runner` if set | `"php"` |
+| `spec.language` | Language for generated task specs | `"en"`, `"cs"`, … |
+| `spec.default_scope` | Paths always included in new task Scope sections | `["src/", "tests/"]` |
+| `lint` | Override lint tool commands. If empty, tools are auto-detected from `vendor/bin`. | `{"phpstan": {"cmd": "vendor/bin/phpstan analyse"}}` |
 
-**Example – use Codex instead of Claude:**
-```json
-{
-    "ai": "codex"
-}
-```
-
-**Example – use a custom AI CLI:**
-```json
-{
-    "ai": "custom",
-    "ai_commands": {
-        "print": "my-ai --output",
-        "interactive": "my-ai"
-    }
-}
-```
-
-If no `lint` section is present, tools are auto-detected from `vendor/bin`. If a project config file (`phpstan.neon`, `.phpcs.xml`) exists it is used; otherwise the bundled default from `vendor/tomashojgr/dev-agents/config/` is used as fallback.
+If a project lint config file (`phpstan.neon`, `.phpcs.xml`) exists it is used; otherwise the bundled default from `vendor/tomashojgr/dev-agents/config/` is used as fallback.
 
 ## Task files
 
