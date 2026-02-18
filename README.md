@@ -15,6 +15,16 @@ composer require --dev tomashojgr/dev-agents
 
 After install, `Makefile.agents` is automatically included in your project's `Makefile`.
 
+> **Note:** Composer 2.2+ requires explicit plugin trust. Add this to your project's `composer.json`:
+> ```json
+> "config": {
+>     "allow-plugins": {
+>         "tomashojgr/dev-agents": true
+>     }
+> }
+> ```
+> Or confirm interactively when Composer asks during `composer require`.
+
 ## Workflow
 
 ```bash
