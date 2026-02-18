@@ -103,7 +103,13 @@ PROMPT;
 echo "\n────────────────────────────────────────────────────────────\n";
 echo "🤖 Launching Claude Code to fix lint issues...\n\n";
 
-passthru($config->aiInteractive($prompt), $exitCode);
+// Write prompt to a temp file to avoid ARG_MAX shell limit with large lint output
+$tmpFile = tempnam(sys_get_temp_dir(), 'da-lint-fix-');
+file_put_contents($tmpFile, $prompt);
+
+passthru($config->aiInteractiveFile($tmpFile), $exitCode);
+
+unlink($tmpFile);
 
 if ($exitCode !== 0) {
     echo "\n❌ Claude Code exited with code $exitCode\n";
