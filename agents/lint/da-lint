@@ -105,6 +105,40 @@ if (empty($failedOutputs)) {
 }
 
 if ($savePromptFile !== null) {
+    // Run phpcbf first if available — fixes style issues automatically
+    $phpcbfCmd = null;
+    if (file_exists("$cwd/vendor/bin/phpcbf")) {
+        $phpcbfCmd = "vendor/bin/phpcbf";
+    } elseif (exec('which phpcbf 2>/dev/null')) {
+        $phpcbfCmd = "phpcbf";
+    }
+
+    if ($phpcbfCmd !== null) {
+        echo "\n▶ Running phpcbf (auto-fix style issues)...\n";
+        exec("cd " . escapeshellarg($cwd) . " && {$phpcbfCmd} 2>&1", $cbfOutput, $cbfCode);
+        echo implode("\n", $cbfOutput) . "\n";
+
+        // Re-run linters to see what remains after phpcbf
+        echo "\n▶ Re-running linters after phpcbf...\n";
+        $failedOutputs = [];
+        foreach ($tools as $tool) {
+            $output = [];
+            $code = 0;
+            exec("cd " . escapeshellarg($cwd) . " && {$tool['cmd']} 2>&1", $output, $code);
+            if ($code !== 0) {
+                echo "❌ {$tool['name']} still failing\n";
+                $failedOutputs[$tool['name']] = ['output' => implode("\n", $output), 'code' => $code];
+            } else {
+                echo "✅ {$tool['name']} passed\n";
+            }
+        }
+
+        if (empty($failedOutputs)) {
+            echo "\n✅ All linters passed after phpcbf\n";
+            exit(0);
+        }
+    }
+
     // Save prompt to file for the caller (e.g. Makefile) to pass to AI
     $issueText = '';
     foreach ($failedOutputs as $name => $result) {
