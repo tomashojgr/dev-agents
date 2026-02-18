@@ -81,6 +81,7 @@ foreach ($tools as $tool) {
     if ($code !== 0) {
         $failed = true;
         echo "❌ {$tool['name']} failed\n";
+        echo "\n" . $outputStr . "\n\n";
     } else {
         echo "✅ {$tool['name']} passed\n";
     }
