@@ -29,13 +29,17 @@ if ($code !== 0) {
     exit(1);
 }
 
-$diff = shell_exec('git diff --staged');
+$diffLines = [];
+exec('git diff --staged', $diffLines);
+$diff = implode("\n", $diffLines);
 if (trim($diff) === '') {
     echo "❌ No staged changes. Use 'git add' first.\n";
     exit(1);
 }
 
-$changedFiles = trim(shell_exec('git diff --staged --name-only'));
+$changedFilesLines = [];
+exec('git diff --staged --name-only', $changedFilesLines);
+$changedFiles = trim(implode("\n", $changedFilesLines));
 
 echo "📋 Staged files:\n$changedFiles\n\n";
 
@@ -95,7 +99,9 @@ PROMPT;
 
 use DevAgents\Config;
 $config = new Config();
-$response = shell_exec($config->aiPrint($prompt) . ' 2>/dev/null');
+$responseLines = [];
+exec($config->aiPrint($prompt) . ' 2>/dev/null', $responseLines);
+$response = implode("\n", $responseLines);
 
 if (empty($response)) {
     echo "❌ No response from claude CLI\n";

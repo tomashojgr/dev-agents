@@ -100,7 +100,9 @@ PROMPT;
 
 echo "🔍 Generating specification for: $goal\n";
 
-$response = shell_exec($config->aiPrint($prompt) . ' 2>/dev/null');
+$responseLines = [];
+exec($config->aiPrint($prompt) . ' 2>/dev/null', $responseLines);
+$response = implode("\n", $responseLines);
 
 if (empty(trim($response))) {
     echo "❌ No response from claude CLI\n";

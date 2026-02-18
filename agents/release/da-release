@@ -17,16 +17,26 @@ if ($code !== 0) {
     exit(1);
 }
 
-$dirty = trim(shell_exec('git status --porcelain'));
+exec('git status --porcelain', $dirtyLines);
+$dirty = trim(implode("\n", $dirtyLines));
 if ($dirty !== '') {
     echo "❌ Working tree has uncommitted changes. Commit everything before releasing.\n";
-    echo shell_exec('git status --short');
+    $shortLines = [];
+    exec('git status --short', $shortLines);
+    echo implode("\n", $shortLines) . "\n";
     exit(1);
 }
 
 // ── Determine current version ─────────────────────────────────────────────────
 
-$latestTag = trim(shell_exec('git tag --sort=-v:refname | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+" | head -1 2>/dev/null'));
+exec('git tag --sort=-v:refname', $allTags);
+$latestTag = '';
+foreach ($allTags as $t) {
+    if (preg_match('/^v\d+\.\d+\.\d+$/', trim($t))) {
+        $latestTag = trim($t);
+        break;
+    }
+}
 $currentVersion = $latestTag !== '' ? ltrim($latestTag, 'v') : '0.0.0';
 
 echo "Current version: v{$currentVersion}\n";
@@ -34,7 +44,9 @@ echo "Current version: v{$currentVersion}\n";
 // ── Get commits since last tag ────────────────────────────────────────────────
 
 $logRange = $latestTag !== '' ? "{$latestTag}..HEAD" : 'HEAD';
-$log = trim(shell_exec("git log {$logRange} --oneline 2>/dev/null"));
+$logLines = [];
+exec("git log " . escapeshellarg($logRange) . " --oneline 2>/dev/null", $logLines);
+$log = trim(implode("\n", $logLines));
 
 if ($log === '') {
     echo "❌ No commits since last release (v{$currentVersion})\n";
@@ -66,7 +78,9 @@ CHANGELOG:
 - <bullet point per logical change, max 10>
 PROMPT;
 
-$response = shell_exec($config->aiPrint($prompt) . ' 2>/dev/null');
+$responseLines = [];
+exec($config->aiPrint($prompt) . ' 2>/dev/null', $responseLines);
+$response = implode("\n", $responseLines);
 
 if (empty(trim($response))) {
     echo "❌ No response from claude CLI\n";

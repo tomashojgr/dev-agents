@@ -20,25 +20,25 @@ if ($tools === null) {
 
     if (file_exists("$cwd/vendor/bin/phpstan")) {
         $tools[] = ['name' => 'PHPStan', 'cmd' => "vendor/bin/phpstan analyse --no-progress"];
-    } elseif (trim((string) shell_exec('which phpstan 2>/dev/null'))) {
+    } elseif (exec('which phpstan 2>/dev/null')) {
         $tools[] = ['name' => 'PHPStan', 'cmd' => "phpstan analyse --no-progress"];
     }
 
     if (file_exists("$cwd/vendor/bin/phpcs")) {
         $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => "vendor/bin/phpcs"];
-    } elseif (trim((string) shell_exec('which phpcs 2>/dev/null'))) {
+    } elseif (exec('which phpcs 2>/dev/null')) {
         $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => "phpcs"];
     }
 
     if (file_exists("$cwd/vendor/bin/php-cs-fixer")) {
         $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => 'vendor/bin/php-cs-fixer fix --dry-run --diff'];
-    } elseif (trim((string) shell_exec('which php-cs-fixer 2>/dev/null'))) {
+    } elseif (exec('which php-cs-fixer 2>/dev/null')) {
         $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => 'php-cs-fixer fix --dry-run --diff'];
     }
 
     if (file_exists("$cwd/vendor/bin/psalm")) {
         $tools[] = ['name' => 'Psalm', 'cmd' => 'vendor/bin/psalm'];
-    } elseif (trim((string) shell_exec('which psalm 2>/dev/null'))) {
+    } elseif (exec('which psalm 2>/dev/null')) {
         $tools[] = ['name' => 'Psalm', 'cmd' => 'psalm'];
     }
 }
@@ -47,8 +47,9 @@ if ($tools === null) {
 
 if (empty($tools)) {
     echo "ℹ️  No linters found or configured. Running PHP syntax check.\n\n";
-    $phpFiles = shell_exec("find $cwd/src -name '*.php' 2>/dev/null");
-    $files = array_filter(explode("\n", trim((string)$phpFiles)));
+    exec("find " . escapeshellarg("$cwd/src") . " -name '*.php' 2>/dev/null", $phpFilesArr);
+    $phpFiles = implode("\n", $phpFilesArr);
+    $files = array_filter(explode("\n", trim($phpFiles)));
     $errors = 0;
     foreach ($files as $file) {
         exec(PHP_BINARY . " -l " . escapeshellarg($file) . " 2>&1", $output, $code);
@@ -106,9 +107,11 @@ The following PHP linting tools reported errors. Summarize the key issues in pla
 {$issueText}
 PROMPT;
 
-    $summary = shell_exec($config->aiPrint($prompt) . ' 2>/dev/null');
+    $summaryLines = [];
+    exec($config->aiPrint($prompt) . ' 2>/dev/null', $summaryLines);
+    $summary = implode("\n", $summaryLines);
 
-    if (!empty(trim((string)$summary))) {
+    if (!empty(trim($summary))) {
         echo $summary . "\n";
     }
 

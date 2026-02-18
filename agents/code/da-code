@@ -38,10 +38,13 @@ if ($code !== 0) {
     exit(1);
 }
 
-$dirty = trim(shell_exec('git status --porcelain'));
+exec('git status --porcelain', $dirtyLines);
+$dirty = trim(implode("\n", $dirtyLines));
 if ($dirty !== '') {
     echo "⚠️  Working tree has uncommitted changes:\n";
-    echo shell_exec('git status --short') . "\n";
+    $shortLines = [];
+    exec('git status --short', $shortLines);
+    echo implode("\n", $shortLines) . "\n";
     echo "Proceed anyway? [y/N] ";
     $answer = strtolower(trim(fgets(STDIN)));
     if ($answer !== 'y') {
