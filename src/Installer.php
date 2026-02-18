@@ -8,7 +8,7 @@ use Composer\IO\IOInterface;
 
 class Installer
 {
-    private const INCLUDE_LINE = "include vendor/tomashojgr/dev-agents/Makefile.agents";
+    private const INCLUDE_LINE = "DA_PHP_PATH ?= php\ninclude vendor/tomashojgr/dev-agents/Makefile.agents";
     private const MAKEFILE = 'Makefile';
     private const CONFIG_FILE = '.dev-agents.json';
     private const CONFIG_TEMPLATE = __DIR__ . '/../config/.dev-agents.json';

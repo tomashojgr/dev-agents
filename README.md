@@ -93,10 +93,10 @@ make release
 
 Lint config files (`phpstan.neon`, `.phpcs.xml`) are created in your project root on install alongside `.dev-agents.json`. Edit them directly to customise lint rules.
 
-If your PHP binary is not called `php` (e.g. `php84`), set `DA_PHP` in your project's `Makefile` before the include line:
+If your PHP binary is not called `php` (e.g. `php84`), override `DA_PHP_PATH` in your project's `Makefile`:
 
 ```makefile
-DA_PHP := php84
+DA_PHP_PATH := php84
 include vendor/tomashojgr/dev-agents/Makefile.agents
 ```
 
