@@ -86,17 +86,27 @@ make release
 |-----|-------------|-----------------|
 | `ai` | AI backend | `"claude"` (default), `"codex"`, or `"custom"` |
 | `ai_commands` | Custom AI commands — only when `"ai": "custom"` | `{"print": "my-ai --output", "interactive": "my-ai"}` |
-| `runner` | Shell wrapper for every command. `{cmd}` is replaced with the actual command. | `"make bash cmd=\"{cmd}\""` |
+| `runner` | Command wrapper for PHP calls inside agents (phpstan, phpcs, AI calls…). `{cmd}` is replaced with the actual command. | `"make bash cmd=\"{cmd}\""` |
 | `spec.language` | Language for generated task specs | `"en"`, `"cs"`, … |
 | `spec.default_scope` | Paths always included in new task Scope sections | `["src/", "tests/"]` |
 | `lint` | Override lint tool commands. If empty, tools are auto-detected from `vendor/bin`. | `{"phpstan": {"cmd": "vendor/bin/phpstan analyse"}}` |
 
 Lint config files (`phpstan.neon`, `.phpcs.xml`) are created in your project root on install alongside `.dev-agents.json`. Edit them directly to customise lint rules.
 
-If your PHP binary is not called `php` (e.g. `php84`), override `DA_PHP_PATH` in your project's `Makefile`:
+### DA_PHP_CMD — how to run PHP
+
+`DA_PHP_CMD` controls how agents are launched from Make. It defaults to `php` but can be any command that runs PHP — including a full Docker or Make wrapper. Set it in your project's `Makefile` before the include line:
 
 ```makefile
-DA_PHP_PATH := php84
+# Local PHP binary with a version suffix
+DA_PHP_CMD := php84
+
+# PHP inside a Docker Compose service
+DA_PHP_CMD := docker compose exec app php
+
+# PHP via a custom Make target
+DA_PHP_CMD := make bash cmd="php"
+
 include vendor/tomashojgr/dev-agents/Makefile.agents
 ```
 

@@ -8,7 +8,7 @@ use Composer\IO\IOInterface;
 
 class Installer
 {
-    private const INCLUDE_LINE = "DA_PHP_PATH ?= php\ninclude vendor/tomashojgr/dev-agents/Makefile.agents";
+    private const INCLUDE_LINE = "DA_PHP_CMD ?= php\ninclude vendor/tomashojgr/dev-agents/Makefile.agents";
     private const MAKEFILE = 'Makefile';
     private const CONFIG_FILE = '.dev-agents.json';
     private const CONFIG_TEMPLATE = __DIR__ . '/../config/.dev-agents.json';
@@ -43,11 +43,11 @@ class Installer
 
         $contents = file_get_contents($makefile);
         if (str_contains($contents, 'Makefile.agents')) {
-            // Makefile include already present — ensure DA_PHP_PATH is also there
-            if (!str_contains($contents, 'DA_PHP_PATH')) {
-                $contents = "DA_PHP_PATH ?= php\n" . $contents;
+            // Makefile include already present — ensure DA_PHP_CMD is also there
+            if (!str_contains($contents, 'DA_PHP_CMD')) {
+                $contents = "DA_PHP_CMD ?= php\n" . $contents;
                 file_put_contents($makefile, $contents);
-                $io->write('<info>dev-agents: Added DA_PHP_PATH to Makefile</info>');
+                $io->write('<info>dev-agents: Added DA_PHP_CMD to Makefile</info>');
             } else {
                 $io->write('<info>dev-agents: Makefile already configured</info>');
             }
