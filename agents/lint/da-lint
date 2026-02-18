@@ -24,7 +24,7 @@ if ($tools === null) {
 
     if (file_exists("$cwd/vendor/bin/phpstan")) {
         $tools[] = ['name' => 'PHPStan', 'cmd' => $config->buildCmd("vendor/bin/phpstan analyse --no-progress{$phpstanConfig}")];
-    } elseif (trim(shell_exec('which phpstan 2>/dev/null'))) {
+    } elseif (trim((string) shell_exec('which phpstan 2>/dev/null'))) {
         $tools[] = ['name' => 'PHPStan', 'cmd' => $config->buildCmd("phpstan analyse --no-progress{$phpstanConfig}")];
     }
 
@@ -34,19 +34,19 @@ if ($tools === null) {
 
     if (file_exists("$cwd/vendor/bin/phpcs")) {
         $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => $config->buildCmd("vendor/bin/phpcs{$phpcsConfig}")];
-    } elseif (trim(shell_exec('which phpcs 2>/dev/null'))) {
+    } elseif (trim((string) shell_exec('which phpcs 2>/dev/null'))) {
         $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => $config->buildCmd("phpcs{$phpcsConfig}")];
     }
 
     if (file_exists("$cwd/vendor/bin/php-cs-fixer")) {
         $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => $config->buildCmd('vendor/bin/php-cs-fixer fix --dry-run --diff')];
-    } elseif (trim(shell_exec('which php-cs-fixer 2>/dev/null'))) {
+    } elseif (trim((string) shell_exec('which php-cs-fixer 2>/dev/null'))) {
         $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => $config->buildCmd('php-cs-fixer fix --dry-run --diff')];
     }
 
     if (file_exists("$cwd/vendor/bin/psalm")) {
         $tools[] = ['name' => 'Psalm', 'cmd' => $config->buildCmd('vendor/bin/psalm')];
-    } elseif (trim(shell_exec('which psalm 2>/dev/null'))) {
+    } elseif (trim((string) shell_exec('which psalm 2>/dev/null'))) {
         $tools[] = ['name' => 'Psalm', 'cmd' => $config->buildCmd('psalm')];
     }
 }
