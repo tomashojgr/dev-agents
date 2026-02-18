@@ -1,12 +1,11 @@
 {
     "name": "tomashojgr/dev-agents",
     "description": "Development agents for commit, lint and release automation",
-    "type": "library",
+    "type": "composer-plugin",
     "license": "MIT",
     "require": {
-        "php": ">=8.4"
-    },
-    "require-dev": {
+        "php": ">=8.4",
+        "composer-plugin-api": "^2.0",
         "composer/composer": "^2.0"
     },
     "bin": [
@@ -22,9 +21,8 @@
             "DevAgents\\": "src/"
         }
     },
-    "scripts": {
-        "post-install-cmd": "DevAgents\\Installer::install",
-        "post-update-cmd": "DevAgents\\Installer::install"
+    "extra": {
+        "class": "DevAgents\\Plugin"
     },
     "config": {
         "sort-packages": true

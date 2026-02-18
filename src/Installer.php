@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 namespace DevAgents;
 
-use Composer\Script\Event;
+use Composer\IO\IOInterface;
 
 class Installer
 {
     private const INCLUDE_LINE = "include vendor/tomashojgr/dev-agents/Makefile.agents";
     private const MAKEFILE = 'Makefile';
 
-    public static function install(Event $event): void
+    public static function run(IOInterface $io): void
     {
-        $io = $event->getIO();
-
         // Check claude CLI is available
         exec('which claude 2>/dev/null', $out, $code);
         if ($code !== 0) {
