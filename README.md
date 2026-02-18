@@ -10,7 +10,7 @@ Composer package for PHP 8.4 projects providing development workflow automation 
 ## Installation
 
 ```bash
-composer require tomashojgr/dev-agents
+composer require --dev tomashojgr/dev-agents
 ```
 
 After install, `Makefile.agents` is automatically included in your project's `Makefile`.
