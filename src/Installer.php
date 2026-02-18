@@ -10,6 +10,12 @@ class Installer
 {
     private const INCLUDE_LINE = "include vendor/tomashojgr/dev-agents/Makefile.agents";
     private const MAKEFILE = 'Makefile';
+    private const CONFIG_FILE = '.dev-agents.json';
+    private const CONFIG_STUB = <<<'JSON'
+    {
+        "ai": "claude"
+    }
+    JSON;
 
     public static function run(IOInterface $io): void
     {
@@ -19,24 +25,39 @@ class Installer
             $io->writeError('<warning>dev-agents: claude CLI not found in PATH. Install it from https://claude.ai/code</warning>');
         }
 
+        self::ensureMakefile($io);
+        self::ensureConfig($io);
+    }
+
+    private static function ensureMakefile(IOInterface $io): void
+    {
         $makefile = getcwd() . '/' . self::MAKEFILE;
 
-        // Create Makefile if it doesn't exist
         if (!file_exists($makefile)) {
             file_put_contents($makefile, self::INCLUDE_LINE . "\n");
             $io->write('<info>dev-agents: Created Makefile with dev-agents include</info>');
             return;
         }
 
-        // Check if already included
         $contents = file_get_contents($makefile);
         if (str_contains($contents, 'Makefile.agents')) {
             $io->write('<info>dev-agents: Makefile already configured</info>');
             return;
         }
 
-        // Prepend include line
         file_put_contents($makefile, self::INCLUDE_LINE . "\n\n" . $contents);
         $io->write('<info>dev-agents: Added dev-agents include to Makefile</info>');
+    }
+
+    private static function ensureConfig(IOInterface $io): void
+    {
+        $config = getcwd() . '/' . self::CONFIG_FILE;
+
+        if (file_exists($config)) {
+            return;
+        }
+
+        file_put_contents($config, self::CONFIG_STUB . "\n");
+        $io->write('<info>dev-agents: Created .dev-agents.json — edit to customise AI backend, runner, lint tools, etc.</info>');
     }
 }
