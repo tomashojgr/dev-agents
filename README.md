@@ -72,7 +72,14 @@ make release
         "language": "en",
         "default_scope": []
     },
-    "lint": {}
+    "lint": {
+        "phpstan": {
+            "cmd": null
+        },
+        "phpcs": {
+            "cmd": null
+        }
+    }
 }
 ```
 

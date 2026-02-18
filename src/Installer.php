@@ -20,7 +20,14 @@ class Installer
         "language": "en",
         "default_scope": []
     },
-    "lint": {}
+    "lint": {
+        "phpstan": {
+            "cmd": null
+        },
+        "phpcs": {
+            "cmd": null
+        }
+    }
 }
 JSON;
 
