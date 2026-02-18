@@ -43,7 +43,14 @@ class Installer
 
         $contents = file_get_contents($makefile);
         if (str_contains($contents, 'Makefile.agents')) {
-            $io->write('<info>dev-agents: Makefile already configured</info>');
+            // Makefile include already present — ensure DA_PHP_PATH is also there
+            if (!str_contains($contents, 'DA_PHP_PATH')) {
+                $contents = "DA_PHP_PATH ?= php\n" . $contents;
+                file_put_contents($makefile, $contents);
+                $io->write('<info>dev-agents: Added DA_PHP_PATH to Makefile</info>');
+            } else {
+                $io->write('<info>dev-agents: Makefile already configured</info>');
+            }
             return;
         }
 
