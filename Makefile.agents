@@ -42,7 +42,7 @@ lint: ## Run lint agent.
 
 .PHONY: lint-fix
 lint-fix: ## Run linters and launch Claude Code to fix issues interactively.
-	$(DA_PHP_CMD) $(AGENTS_BIN)/da-lint-fix
+	$(DA_PHP_CMD) $(AGENTS_BIN)/da-lint --save-prompt .dev-agents-lint || claude --file .dev-agents-lint
 
 .PHONY: release
 release: ## Run release agent.

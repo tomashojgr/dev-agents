@@ -109,13 +109,4 @@ class Config
         return $this->aiCommands()['interactive'] . ' ' . escapeshellarg($prompt);
     }
 
-    /**
-     * Build an interactive AI call that reads the prompt from a file.
-     * Use this when the prompt may be large (e.g. contains full lint output)
-     * to avoid hitting ARG_MAX shell limits.
-     */
-    public function aiInteractiveFile(string $filePath): string
-    {
-        return $this->aiCommands()['interactive'] . ' --file ' . escapeshellarg($filePath);
-    }
 }

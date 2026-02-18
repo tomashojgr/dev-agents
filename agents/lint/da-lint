@@ -10,6 +10,15 @@ use DevAgents\Config;
 $config = new Config();
 $cwd = getcwd();
 
+// ── Arguments ─────────────────────────────────────────────────────────────────
+
+$savePromptFile = null;
+foreach ($argv as $i => $arg) {
+    if ($arg === '--save-prompt' && isset($argv[$i + 1])) {
+        $savePromptFile = $argv[$i + 1];
+    }
+}
+
 // ── Resolve tools ─────────────────────────────────────────────────────────────
 
 $tools = $config->lintTools();
@@ -67,7 +76,6 @@ if (empty($tools)) {
 // ── Run each linter ───────────────────────────────────────────────────────────
 
 $outputs = [];
-$failed = false;
 
 foreach ($tools as $tool) {
     echo "▶ Running {$tool['name']}...\n";
@@ -80,7 +88,6 @@ foreach ($tools as $tool) {
     $outputs[$tool['name']] = ['output' => $outputStr, 'code' => $code];
 
     if ($code !== 0) {
-        $failed = true;
         echo "❌ {$tool['name']} failed\n";
         echo "\n" . $outputStr . "\n\n";
     } else {
@@ -88,35 +95,38 @@ foreach ($tools as $tool) {
     }
 }
 
-// ── AI analysis of failures ───────────────────────────────────────────────────
+// ── Handle failures ───────────────────────────────────────────────────────────
 
 $failedOutputs = array_filter($outputs, fn($r) => $r['code'] !== 0);
 
-if (!empty($failedOutputs)) {
-    echo "\n────────────────────────────────────────────────────────────\n";
-    echo "🤖 Asking Claude to summarize issues...\n\n";
+if (empty($failedOutputs)) {
+    echo "\n✅ All linters passed\n";
+    exit(0);
+}
 
+if ($savePromptFile !== null) {
+    // Save prompt to file for the caller (e.g. Makefile) to pass to AI
     $issueText = '';
     foreach ($failedOutputs as $name => $result) {
         $issueText .= "=== $name ===\n{$result['output']}\n\n";
     }
 
     $prompt = <<<PROMPT
-The following PHP linting tools reported errors. Summarize the key issues in plain language grouped by category (type errors, style issues, dead code, etc.). Be concise. For each issue suggest the fix in one line.
+You are an expert PHP developer. The following linters reported errors in this project.
 
+Fix all reported issues. Stay within the affected files — do not refactor unrelated code.
+
+When done:
+1. Run the linters again to verify all issues are resolved
+2. Report a summary of what was changed
+
+LINT OUTPUT:
 {$issueText}
 PROMPT;
 
-    $summaryLines = [];
-    exec($config->aiPrint($prompt) . ' 2>/dev/null', $summaryLines);
-    $summary = implode("\n", $summaryLines);
-
-    if (!empty(trim($summary))) {
-        echo $summary . "\n";
-    }
-
-    echo "\n❌ Lint failed\n";
-    exit(1);
+    file_put_contents($savePromptFile, $prompt);
+    echo "\nℹ️  Prompt saved to {$savePromptFile}\n";
 }
 
-echo "\n✅ All linters passed\n";
+echo "\n❌ Lint failed\n";
+exit(1);

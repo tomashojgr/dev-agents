@@ -14,7 +14,6 @@
         "agents/code/da-code",
         "agents/commit/da-commit",
         "agents/lint/da-lint",
-        "agents/lint-fix/da-lint-fix",
         "agents/release/da-release"
     ],
     "autoload": {

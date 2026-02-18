@@ -29,6 +29,7 @@ class Installer
         self::ensureMakefile($io);
         self::ensureConfig($io);
         self::ensureLintConfigs($io);
+        self::ensureGitignore($io);
     }
 
     private static function ensureMakefile(IOInterface $io): void
@@ -68,6 +69,24 @@ class Installer
 
         file_put_contents($config, file_get_contents(self::CONFIG_TEMPLATE));
         $io->write('<info>dev-agents: Created .dev-agents.json — edit to customise AI backend, lint tools, etc.</info>');
+    }
+
+    private static function ensureGitignore(IOInterface $io): void
+    {
+        $gitignore = getcwd() . '/.gitignore';
+        $entry = '.dev-agents-*';
+
+        if (file_exists($gitignore)) {
+            $contents = file_get_contents($gitignore);
+            if (str_contains($contents, $entry)) {
+                return;
+            }
+            file_put_contents($gitignore, $contents . "\n" . $entry . "\n");
+        } else {
+            file_put_contents($gitignore, $entry . "\n");
+        }
+
+        $io->write('<info>dev-agents: Added .dev-agents-* to .gitignore</info>');
     }
 
     private static function ensureLintConfigs(IOInterface $io): void

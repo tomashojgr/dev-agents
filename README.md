@@ -44,7 +44,7 @@ make commit TASK=task-001-add-dkim-validation
 # 5. Lint (check only)
 make lint
 
-# 5b. Lint and fix interactively with Claude Code
+# 5b. Lint and fix interactively with Claude Code (runs claude locally)
 make lint-fix
 
 # 6. Release
@@ -60,7 +60,7 @@ make release
 | `make code TASK=...` | `da-code` | Launch Claude Code to implement an approved task |
 | `make commit TASK=...` | `da-commit` | Generate Conventional Commits message from staged diff |
 | `make lint` | `da-lint` | Run available PHP linters with AI error summary |
-| `make lint-fix` | `da-lint-fix` | Run linters and launch Claude Code interactively to fix issues |
+| `make lint-fix` | — | Run linters in Docker, then launch Claude Code locally to fix issues |
 | `make release` | `da-release` | Bump semver, tag release with AI-generated changelog |
 
 ## Configuration
