@@ -18,24 +18,16 @@ if ($tools === null) {
     // Auto-detect – use project config files if present, else our defaults
     $tools = [];
 
-    $phpstanConfig = file_exists("$cwd/phpstan.neon") || file_exists("$cwd/phpstan.neon.dist")
-        ? ''
-        : ' --configuration=' . escapeshellarg(__DIR__ . '/../../config/phpstan.neon');
-
     if (file_exists("$cwd/vendor/bin/phpstan")) {
-        $tools[] = ['name' => 'PHPStan', 'cmd' => $config->buildCmd("vendor/bin/phpstan analyse --no-progress{$phpstanConfig}")];
+        $tools[] = ['name' => 'PHPStan', 'cmd' => $config->buildCmd("vendor/bin/phpstan analyse --no-progress")];
     } elseif (trim((string) shell_exec('which phpstan 2>/dev/null'))) {
-        $tools[] = ['name' => 'PHPStan', 'cmd' => $config->buildCmd("phpstan analyse --no-progress{$phpstanConfig}")];
+        $tools[] = ['name' => 'PHPStan', 'cmd' => $config->buildCmd("phpstan analyse --no-progress")];
     }
 
-    $phpcsConfig = file_exists("$cwd/.phpcs.xml") || file_exists("$cwd/phpcs.xml") || file_exists("$cwd/.phpcs.xml.dist")
-        ? ''
-        : ' --standard=' . escapeshellarg(__DIR__ . '/../../config/.phpcs.xml');
-
     if (file_exists("$cwd/vendor/bin/phpcs")) {
-        $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => $config->buildCmd("vendor/bin/phpcs{$phpcsConfig}")];
+        $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => $config->buildCmd("vendor/bin/phpcs")];
     } elseif (trim((string) shell_exec('which phpcs 2>/dev/null'))) {
-        $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => $config->buildCmd("phpcs{$phpcsConfig}")];
+        $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => $config->buildCmd("phpcs")];
     }
 
     if (file_exists("$cwd/vendor/bin/php-cs-fixer")) {

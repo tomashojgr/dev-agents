@@ -93,7 +93,7 @@ make release
 | `spec.default_scope` | Paths always included in new task Scope sections | `["src/", "tests/"]` |
 | `lint` | Override lint tool commands. If empty, tools are auto-detected from `vendor/bin`. | `{"phpstan": {"cmd": "vendor/bin/phpstan analyse"}}` |
 
-If a project lint config file (`phpstan.neon`, `.phpcs.xml`) exists it is used; otherwise the bundled default from `vendor/tomashojgr/dev-agents/config/` is used as fallback.
+Lint config files (`phpstan.neon`, `.phpcs.xml`) are created in your project root on install alongside `.dev-agents.json`. Edit them directly to customise lint rules.
 
 ## Task files
 

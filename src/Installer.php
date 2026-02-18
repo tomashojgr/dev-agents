@@ -13,6 +13,11 @@ class Installer
     private const CONFIG_FILE = '.dev-agents.json';
     private const CONFIG_TEMPLATE = __DIR__ . '/../config/.dev-agents.json';
 
+    private const LINT_CONFIGS = [
+        'phpstan.neon' => ['template' => __DIR__ . '/../config/phpstan.neon',  'bin' => 'phpstan'],
+        '.phpcs.xml'   => ['template' => __DIR__ . '/../config/.phpcs.xml',    'bin' => 'phpcs'],
+    ];
+
     public static function run(IOInterface $io): void
     {
         // Check claude CLI is available
@@ -23,6 +28,7 @@ class Installer
 
         self::ensureMakefile($io);
         self::ensureConfig($io);
+        self::ensureLintConfigs($io);
     }
 
     private static function ensureMakefile(IOInterface $io): void
@@ -55,5 +61,21 @@ class Installer
 
         file_put_contents($config, file_get_contents(self::CONFIG_TEMPLATE));
         $io->write('<info>dev-agents: Created .dev-agents.json — edit to customise AI backend, runner, lint tools, etc.</info>');
+    }
+
+    private static function ensureLintConfigs(IOInterface $io): void
+    {
+        $cwd = getcwd();
+        foreach (self::LINT_CONFIGS as $filename => $def) {
+            $target = $cwd . '/' . $filename;
+            if (file_exists($target)) {
+                continue;
+            }
+            if (!file_exists($cwd . '/vendor/bin/' . $def['bin'])) {
+                continue;
+            }
+            file_put_contents($target, file_get_contents($def['template']));
+            $io->write("<info>dev-agents: Created {$filename} — edit to customise lint rules.</info>");
+        }
     }
 }
