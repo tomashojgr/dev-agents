@@ -3,7 +3,7 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/../../vendor/autoload.php';
+(function () { $dir = __DIR__; while (!file_exists($dir . '/vendor/autoload.php')) { $parent = dirname($dir); if ($parent === $dir) { fwrite(STDERR, "autoload.php not found\n"); exit(1); } $dir = $parent; } require $dir . '/vendor/autoload.php'; })();
 
 // ── Detect available linters ──────────────────────────────────────────────────
 
