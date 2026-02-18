@@ -1,51 +1,54 @@
 # dev-agents
 
-Development agents for automating commit messages, linting and releases.
+Composer package for PHP 8.4 projects providing development workflow automation via specialized CLI agents built on [Claude Code](https://claude.ai/code).
 
-## Agents
+## Requirements
 
-- **commit** – Analyzes staged diff, generates Conventional Commits messages via Claude API
-- **lint** – Code linting before commit *(coming soon)*
-- **release** – Semantic versioning, CHANGELOG, git tag *(coming soon)*
+- PHP 8.4+
+- [`claude` CLI](https://claude.ai/code) installed and authenticated
 
 ## Installation
 
 ```bash
-composer require yourname/dev-agents
+composer require tomashojgr/dev-agents
 ```
 
-## Configuration
+After install, `Makefile.agents` is automatically included in your project's `Makefile`.
 
-Set your Anthropic API key:
+## Workflow
 
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
+# 1. Generate task specification
+make spec TASK="add DKIM validation to email sender"
+
+# 2. Review .tasks/task-001-add-dkim-validation/TASK.md, then approve
+make approve TASK=task-001-add-dkim-validation
+
+# 3. Implement (launches Claude Code interactively)
+make code TASK=task-001-add-dkim-validation
+
+# 4. Stage changes, then commit
+git add src/
+make commit TASK=task-001-add-dkim-validation
+
+# 5. Lint
+make lint
+
+# 6. Release
+make release
 ```
 
-Add to your `.bashrc` or `.zshrc` for persistence.
+## Agents
 
-## Usage
+| Command | Binary | Description |
+|---------|--------|-------------|
+| `make spec TASK="..."` | `da-spec` | Generate `TASK.md` specification from a goal string |
+| `make approve TASK=...` | `da-approve` | Approve a task spec (sets `status: approved`) |
+| `make code TASK=...` | `da-code` | Launch Claude Code to implement an approved task |
+| `make commit TASK=...` | `da-commit` | Generate Conventional Commits message from staged diff |
+| `make lint` | `da-lint` | Run available PHP linters with AI error summary |
+| `make release` | `da-release` | Bump semver, tag release with AI-generated changelog |
 
-### Commit agent
+## Task files
 
-```bash
-# Stage your changes first
-git add .
-
-# Run commit agent with task context
-./vendor/bin/commit.sh "add DKIM validation"
-```
-
-The agent will:
-1. Analyze staged diff
-2. Generate properly formatted commit message(s)
-3. Ask for confirmation
-4. Commit
-
-## Requirements
-
-- bash
-- curl
-- jq
-- git
-- Anthropic API key
+Tasks are stored in `.tasks/<task-id>/TASK.md` in your project. Add `.tasks/` to `.gitignore` or commit them – your choice.

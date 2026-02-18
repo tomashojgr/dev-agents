@@ -1,0 +1,141 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../../vendor/autoload.php';
+
+// ── Git checks ────────────────────────────────────────────────────────────────
+
+exec('git rev-parse --git-dir 2>/dev/null', $out, $code);
+if ($code !== 0) {
+    echo "❌ Not a git repository\n";
+    exit(1);
+}
+
+$dirty = trim(shell_exec('git status --porcelain'));
+if ($dirty !== '') {
+    echo "❌ Working tree has uncommitted changes. Commit everything before releasing.\n";
+    echo shell_exec('git status --short');
+    exit(1);
+}
+
+// ── Determine current version ─────────────────────────────────────────────────
+
+$latestTag = trim(shell_exec('git tag --sort=-v:refname | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+" | head -1 2>/dev/null'));
+$currentVersion = $latestTag !== '' ? ltrim($latestTag, 'v') : '0.0.0';
+
+echo "Current version: v{$currentVersion}\n";
+
+// ── Get commits since last tag ────────────────────────────────────────────────
+
+$logRange = $latestTag !== '' ? "{$latestTag}..HEAD" : 'HEAD';
+$log = trim(shell_exec("git log {$logRange} --oneline 2>/dev/null"));
+
+if ($log === '') {
+    echo "❌ No commits since last release (v{$currentVersion})\n";
+    exit(1);
+}
+
+echo "\nCommits since v{$currentVersion}:\n";
+foreach (explode("\n", $log) as $line) {
+    echo "  $line\n";
+}
+
+// ── Determine bump type via AI ────────────────────────────────────────────────
+
+echo "\n🤖 Analyzing commits for version bump...\n";
+
+$prompt = <<<PROMPT
+Analyze these git commits and determine the appropriate semantic version bump (major/minor/patch) following semver.org rules:
+- major: breaking changes (BREAKING CHANGE in footer, or ! after type)
+- minor: new features (feat:)
+- patch: bug fixes, chores, docs (fix:, chore:, docs:, etc.)
+
+Commits:
+{$log}
+
+Respond with EXACTLY one line in this format:
+BUMP: <major|minor|patch>
+REASON: <one sentence explanation>
+CHANGELOG:
+- <bullet point per logical change, max 10>
+PROMPT;
+
+$escaped = escapeshellarg($prompt);
+$response = shell_exec("claude --print $escaped 2>/dev/null");
+
+if (empty(trim($response))) {
+    echo "❌ No response from claude CLI\n";
+    exit(1);
+}
+
+// ── Parse AI response ─────────────────────────────────────────────────────────
+
+$bump = 'patch';
+$reason = '';
+$changelog = [];
+
+foreach (explode("\n", $response) as $line) {
+    if (str_starts_with($line, 'BUMP: ')) {
+        $bump = strtolower(trim(substr($line, 6)));
+        if (!in_array($bump, ['major', 'minor', 'patch'])) {
+            $bump = 'patch';
+        }
+    } elseif (str_starts_with($line, 'REASON: ')) {
+        $reason = trim(substr($line, 8));
+    } elseif (str_starts_with($line, '- ')) {
+        $changelog[] = trim($line);
+    }
+}
+
+// ── Calculate next version ────────────────────────────────────────────────────
+
+[$major, $minor, $patch] = array_map('intval', explode('.', $currentVersion));
+
+match ($bump) {
+    'major' => [$major++, $minor = 0, $patch = 0],
+    'minor' => [$minor++, $patch = 0],
+    default => $patch++,
+};
+
+$nextVersion = "v{$major}.{$minor}.{$patch}";
+
+// ── Confirm ───────────────────────────────────────────────────────────────────
+
+echo "\n────────────────────────────────────────────────────────────\n";
+echo "Bump type:    {$bump}\n";
+echo "Reason:       {$reason}\n";
+echo "New version:  {$nextVersion}\n";
+
+if (!empty($changelog)) {
+    echo "\nChangelog:\n";
+    foreach ($changelog as $entry) {
+        echo "  $entry\n";
+    }
+}
+
+echo "\n────────────────────────────────────────────────────────────\n";
+echo "Create release {$nextVersion}? [Y/n] ";
+$answer = strtolower(trim(fgets(STDIN)));
+
+if ($answer === 'n') {
+    echo "❌ Release cancelled\n";
+    exit(1);
+}
+
+// ── Tag release ───────────────────────────────────────────────────────────────
+
+$changelogText = implode("\n", $changelog);
+$tagMessage = "Release {$nextVersion}\n\n{$changelogText}";
+
+passthru('git tag -a ' . escapeshellarg($nextVersion) . ' -m ' . escapeshellarg($tagMessage), $exitCode);
+
+if ($exitCode !== 0) {
+    echo "❌ Failed to create tag\n";
+    exit(1);
+}
+
+echo "\n✅ Tagged release {$nextVersion}\n";
+echo "\nTo push the release:\n";
+echo "  git push origin {$nextVersion}\n";

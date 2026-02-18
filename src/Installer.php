@@ -8,12 +8,19 @@ use Composer\Script\Event;
 
 class Installer
 {
-    private const INCLUDE_LINE = "include vendor/yourname/dev-agents/Makefile.agents";
+    private const INCLUDE_LINE = "include vendor/tomashojgr/dev-agents/Makefile.agents";
     private const MAKEFILE = 'Makefile';
 
     public static function install(Event $event): void
     {
         $io = $event->getIO();
+
+        // Check claude CLI is available
+        exec('which claude 2>/dev/null', $out, $code);
+        if ($code !== 0) {
+            $io->writeError('<warning>dev-agents: claude CLI not found in PATH. Install it from https://claude.ai/code</warning>');
+        }
+
         $makefile = getcwd() . '/' . self::MAKEFILE;
 
         // Create Makefile if it doesn't exist
