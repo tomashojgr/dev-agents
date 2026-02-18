@@ -5,7 +5,7 @@ Composer package for PHP 8.4 projects providing development workflow automation 
 ## Requirements
 
 - PHP 8.4+
-- [`claude` CLI](https://claude.ai/code) installed and authenticated
+- [`claude` CLI](https://claude.ai/code) installed and authenticated (or another configured AI CLI – see Configuration)
 
 ## Installation
 
@@ -86,8 +86,9 @@ Create `.dev-agents.json` in your project root to customize behaviour:
 |-----|-------------|---------|
 | `runner` | Shell template wrapping every command. Use `{cmd}` as placeholder. | direct execution |
 | `php` | PHP binary. Wrapped by `runner` if set. | `php` |
-| `ai.print` | CLI command for non-interactive AI calls (spec, commit, lint, release) | `claude --print` |
-| `ai.interactive` | CLI command for interactive AI coding agent (code) | `claude` |
+| `ai` | AI backend: `claude`, `codex`, or `custom` | `claude` |
+| `ai_commands.print` | Non-interactive command (only when `"ai": "custom"`) | — |
+| `ai_commands.interactive` | Interactive command (only when `"ai": "custom"`) | — |
 | `lint.*.cmd` | Override lint tool commands. If omitted, tools are auto-detected. | auto-detect |
 | `spec.language` | Language for generated task specs (`en`, `cs`, …) | `en` |
 | `spec.default_scope` | Paths always included in new task Scope sections | `[]` |
@@ -95,9 +96,17 @@ Create `.dev-agents.json` in your project root to customize behaviour:
 **Example – use Codex instead of Claude:**
 ```json
 {
-    "ai": {
-        "interactive": "codex",
-        "print": "codex exec"
+    "ai": "codex"
+}
+```
+
+**Example – use a custom AI CLI:**
+```json
+{
+    "ai": "custom",
+    "ai_commands": {
+        "print": "my-ai --output",
+        "interactive": "my-ai"
     }
 }
 ```

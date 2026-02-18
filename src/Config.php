@@ -85,25 +85,51 @@ class Config
         return $this->data['spec']['default_scope'] ?? [];
     }
 
+    private const AI_PRESETS = [
+        'claude' => [
+            'print'       => 'claude --print',
+            'interactive' => 'claude',
+        ],
+        'codex' => [
+            'print'       => 'codex exec',
+            'interactive' => 'codex',
+        ],
+    ];
+
+    /**
+     * Resolve AI commands from config.
+     * "ai": "claude"  → preset
+     * "ai": "codex"   → preset
+     * "ai": "custom"  → uses "ai_commands": { "print": "...", "interactive": "..." }
+     */
+    private function aiCommands(): array
+    {
+        $ai = $this->data['ai'] ?? 'claude';
+
+        if (isset(self::AI_PRESETS[$ai])) {
+            return self::AI_PRESETS[$ai];
+        }
+
+        // custom
+        return [
+            'print'       => $this->data['ai_commands']['print'] ?? 'claude --print',
+            'interactive' => $this->data['ai_commands']['interactive'] ?? 'claude',
+        ];
+    }
+
     /**
      * Build a non-interactive AI call that prints response to stdout.
-     * Default: claude --print "<prompt>"
-     * Codex:   codex exec "<prompt>"
      */
     public function aiPrint(string $prompt): string
     {
-        $bin = $this->data['ai']['print'] ?? 'claude --print';
-        return $bin . ' ' . escapeshellarg($prompt);
+        return $this->aiCommands()['print'] . ' ' . escapeshellarg($prompt);
     }
 
     /**
      * Build an interactive AI call (takes over the terminal).
-     * Default: claude "<prompt>"
-     * Codex:   codex "<prompt>"
      */
     public function aiInteractive(string $prompt): string
     {
-        $bin = $this->data['ai']['interactive'] ?? 'claude';
-        return $bin . ' ' . escapeshellarg($prompt);
+        return $this->aiCommands()['interactive'] . ' ' . escapeshellarg($prompt);
     }
 }
