@@ -1,6 +1,5 @@
 {
     "ai": "claude",
-    "runner": null,
     "spec": {
         "language": "en",
         "default_scope": []

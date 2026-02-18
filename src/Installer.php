@@ -67,7 +67,7 @@ class Installer
         }
 
         file_put_contents($config, file_get_contents(self::CONFIG_TEMPLATE));
-        $io->write('<info>dev-agents: Created .dev-agents.json — edit to customise AI backend, runner, lint tools, etc.</info>');
+        $io->write('<info>dev-agents: Created .dev-agents.json — edit to customise AI backend, lint tools, etc.</info>');
     }
 
     private static function ensureLintConfigs(IOInterface $io): void

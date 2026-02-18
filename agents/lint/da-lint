@@ -19,27 +19,27 @@ if ($tools === null) {
     $tools = [];
 
     if (file_exists("$cwd/vendor/bin/phpstan")) {
-        $tools[] = ['name' => 'PHPStan', 'cmd' => $config->buildCmd("vendor/bin/phpstan analyse --no-progress")];
+        $tools[] = ['name' => 'PHPStan', 'cmd' => "vendor/bin/phpstan analyse --no-progress"];
     } elseif (trim((string) shell_exec('which phpstan 2>/dev/null'))) {
-        $tools[] = ['name' => 'PHPStan', 'cmd' => $config->buildCmd("phpstan analyse --no-progress")];
+        $tools[] = ['name' => 'PHPStan', 'cmd' => "phpstan analyse --no-progress"];
     }
 
     if (file_exists("$cwd/vendor/bin/phpcs")) {
-        $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => $config->buildCmd("vendor/bin/phpcs")];
+        $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => "vendor/bin/phpcs"];
     } elseif (trim((string) shell_exec('which phpcs 2>/dev/null'))) {
-        $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => $config->buildCmd("phpcs")];
+        $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => "phpcs"];
     }
 
     if (file_exists("$cwd/vendor/bin/php-cs-fixer")) {
-        $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => $config->buildCmd('vendor/bin/php-cs-fixer fix --dry-run --diff')];
+        $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => 'vendor/bin/php-cs-fixer fix --dry-run --diff'];
     } elseif (trim((string) shell_exec('which php-cs-fixer 2>/dev/null'))) {
-        $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => $config->buildCmd('php-cs-fixer fix --dry-run --diff')];
+        $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => 'php-cs-fixer fix --dry-run --diff'];
     }
 
     if (file_exists("$cwd/vendor/bin/psalm")) {
-        $tools[] = ['name' => 'Psalm', 'cmd' => $config->buildCmd('vendor/bin/psalm')];
+        $tools[] = ['name' => 'Psalm', 'cmd' => 'vendor/bin/psalm'];
     } elseif (trim((string) shell_exec('which psalm 2>/dev/null'))) {
-        $tools[] = ['name' => 'Psalm', 'cmd' => $config->buildCmd('psalm')];
+        $tools[] = ['name' => 'Psalm', 'cmd' => 'psalm'];
     }
 }
 
@@ -51,7 +51,7 @@ if (empty($tools)) {
     $files = array_filter(explode("\n", trim((string)$phpFiles)));
     $errors = 0;
     foreach ($files as $file) {
-        exec($config->buildCmd("php -l " . escapeshellarg($file)) . " 2>&1", $output, $code);
+        exec("php -l " . escapeshellarg($file) . " 2>&1", $output, $code);
         if ($code !== 0) {
             echo "❌ " . implode("\n", $output) . "\n";
             $errors++;

@@ -66,7 +66,6 @@ make release
 ```json
 {
     "ai": "claude",
-    "runner": null,
     "spec": {
         "language": "en",
         "default_scope": []
@@ -86,7 +85,6 @@ make release
 |-----|-------------|-----------------|
 | `ai` | AI backend | `"claude"` (default), `"codex"`, or `"custom"` |
 | `ai_commands` | Custom AI commands — only when `"ai": "custom"` | `{"print": "my-ai --output", "interactive": "my-ai"}` |
-| `runner` | Command wrapper for PHP calls inside agents (phpstan, phpcs, AI calls…). `{cmd}` is replaced with the actual command. | `"make bash cmd=\"{cmd}\""` |
 | `spec.language` | Language for generated task specs | `"en"`, `"cs"`, … |
 | `spec.default_scope` | Paths always included in new task Scope sections | `["src/", "tests/"]` |
 | `lint` | Override lint tool commands. If empty, tools are auto-detected from `vendor/bin`. | `{"phpstan": {"cmd": "vendor/bin/phpstan analyse"}}` |

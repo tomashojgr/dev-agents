@@ -19,21 +19,6 @@ class Config
     }
 
     /**
-     * Build a shell command, optionally wrapping it in the configured runner.
-     *
-     * Runner template uses {cmd} as placeholder:
-     *   "make bash cmd=\"{cmd}\""  →  make bash cmd="vendor/bin/phpstan analyse"
-     */
-    public function buildCmd(string $cmd): string
-    {
-        $runner = $this->data['runner'] ?? null;
-        if ($runner === null) {
-            return $cmd;
-        }
-        return str_replace('{cmd}', $cmd, $runner);
-    }
-
-    /**
      * Return configured lint tools, or null to use auto-detection.
      *
      * Each tool: ['name' => string, 'cmd' => string]
@@ -53,7 +38,7 @@ class Config
             }
             $tools[] = [
                 'name' => $name,
-                'cmd'  => $this->buildCmd($cmd),
+                'cmd'  => $cmd,
             ];
         }
 
