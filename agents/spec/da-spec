@@ -5,6 +5,8 @@ declare(strict_types=1);
 
 (function () { $dir = __DIR__; while (!file_exists($dir . '/vendor/autoload.php')) { $parent = dirname($dir); if ($parent === $dir) { fwrite(STDERR, "autoload.php not found\n"); exit(1); } $dir = $parent; } require $dir . '/vendor/autoload.php'; })();
 
+use DevAgents\Config;
+
 // ── Arguments ─────────────────────────────────────────────────────────────────
 
 $goal = $argv[1] ?? '';
@@ -44,8 +46,11 @@ if (!mkdir($taskDir, 0755, true)) {
 
 // ── Build prompt ──────────────────────────────────────────────────────────────
 
+$config = new Config();
 $date = date('Y-m-d');
 $template = file_get_contents(__DIR__ . '/../../templates/TASK.md');
+$language = $config->specLanguage();
+$defaultScope = $config->specDefaultScope();
 
 // Detect project context
 $projectContext = '';
@@ -61,8 +66,18 @@ if (file_exists(getcwd() . '/CLAUDE.md')) {
     $projectContext .= "\nProject instructions from CLAUDE.md:\n$claudeMd\n";
 }
 
+$languageInstruction = $language !== 'en'
+    ? "Write the specification in language: {$language}."
+    : '';
+
+$defaultScopeInstruction = !empty($defaultScope)
+    ? "Always include these paths in the Scope section: " . implode(', ', $defaultScope) . "."
+    : '';
+
 $prompt = <<<PROMPT
 You are a software architect writing a task specification for a development agent.
+{$languageInstruction}
+{$defaultScopeInstruction}
 
 {$projectContext}
 

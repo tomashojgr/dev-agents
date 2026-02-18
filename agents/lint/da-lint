@@ -5,43 +5,62 @@ declare(strict_types=1);
 
 (function () { $dir = __DIR__; while (!file_exists($dir . '/vendor/autoload.php')) { $parent = dirname($dir); if ($parent === $dir) { fwrite(STDERR, "autoload.php not found\n"); exit(1); } $dir = $parent; } require $dir . '/vendor/autoload.php'; })();
 
-// ── Detect available linters ──────────────────────────────────────────────────
+use DevAgents\Config;
 
+$config = new Config();
 $cwd = getcwd();
-$tools = [];
 
-if (file_exists("$cwd/vendor/bin/phpstan")) {
-    $tools[] = ['name' => 'PHPStan', 'cmd' => 'vendor/bin/phpstan analyse --no-progress'];
-} elseif (shell_exec('which phpstan 2>/dev/null')) {
-    $tools[] = ['name' => 'PHPStan', 'cmd' => 'phpstan analyse --no-progress'];
+// ── Resolve tools ─────────────────────────────────────────────────────────────
+
+$tools = $config->lintTools();
+
+if ($tools === null) {
+    // Auto-detect – use project config files if present, else our defaults
+    $tools = [];
+
+    $phpstanConfig = file_exists("$cwd/phpstan.neon") || file_exists("$cwd/phpstan.neon.dist")
+        ? ''
+        : ' --configuration=' . escapeshellarg(__DIR__ . '/../../config/phpstan.neon');
+
+    if (file_exists("$cwd/vendor/bin/phpstan")) {
+        $tools[] = ['name' => 'PHPStan', 'cmd' => $config->buildCmd("vendor/bin/phpstan analyse --no-progress{$phpstanConfig}")];
+    } elseif (trim(shell_exec('which phpstan 2>/dev/null'))) {
+        $tools[] = ['name' => 'PHPStan', 'cmd' => $config->buildCmd("phpstan analyse --no-progress{$phpstanConfig}")];
+    }
+
+    $phpcsConfig = file_exists("$cwd/.phpcs.xml") || file_exists("$cwd/phpcs.xml") || file_exists("$cwd/.phpcs.xml.dist")
+        ? ''
+        : ' --standard=' . escapeshellarg(__DIR__ . '/../../config/.phpcs.xml');
+
+    if (file_exists("$cwd/vendor/bin/phpcs")) {
+        $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => $config->buildCmd("vendor/bin/phpcs{$phpcsConfig}")];
+    } elseif (trim(shell_exec('which phpcs 2>/dev/null'))) {
+        $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => $config->buildCmd("phpcs{$phpcsConfig}")];
+    }
+
+    if (file_exists("$cwd/vendor/bin/php-cs-fixer")) {
+        $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => $config->buildCmd('vendor/bin/php-cs-fixer fix --dry-run --diff')];
+    } elseif (trim(shell_exec('which php-cs-fixer 2>/dev/null'))) {
+        $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => $config->buildCmd('php-cs-fixer fix --dry-run --diff')];
+    }
+
+    if (file_exists("$cwd/vendor/bin/psalm")) {
+        $tools[] = ['name' => 'Psalm', 'cmd' => $config->buildCmd('vendor/bin/psalm')];
+    } elseif (trim(shell_exec('which psalm 2>/dev/null'))) {
+        $tools[] = ['name' => 'Psalm', 'cmd' => $config->buildCmd('psalm')];
+    }
 }
 
-if (file_exists("$cwd/vendor/bin/phpcs")) {
-    $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => 'vendor/bin/phpcs'];
-} elseif (shell_exec('which phpcs 2>/dev/null')) {
-    $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => 'phpcs'];
-}
+// ── Fallback: PHP syntax check ────────────────────────────────────────────────
 
-if (file_exists("$cwd/vendor/bin/php-cs-fixer")) {
-    $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => 'vendor/bin/php-cs-fixer fix --dry-run --diff'];
-} elseif (shell_exec('which php-cs-fixer 2>/dev/null')) {
-    $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => 'php-cs-fixer fix --dry-run --diff'];
-}
-
-if (file_exists("$cwd/vendor/bin/psalm")) {
-    $tools[] = ['name' => 'Psalm', 'cmd' => 'vendor/bin/psalm'];
-} elseif (shell_exec('which psalm 2>/dev/null')) {
-    $tools[] = ['name' => 'Psalm', 'cmd' => 'psalm'];
-}
-
-// Fallback: PHP syntax check
 if (empty($tools)) {
-    echo "ℹ️  No linters found (PHPStan, PHPCS, PHP CS Fixer, Psalm). Running PHP syntax check.\n\n";
+    echo "ℹ️  No linters found or configured. Running PHP syntax check.\n\n";
     $phpFiles = shell_exec("find $cwd/src -name '*.php' 2>/dev/null");
-    $files = array_filter(explode("\n", trim($phpFiles)));
+    $files = array_filter(explode("\n", trim((string)$phpFiles)));
+    $php = $config->phpBin();
     $errors = 0;
     foreach ($files as $file) {
-        exec("php -l " . escapeshellarg($file) . " 2>&1", $output, $code);
+        exec($config->buildCmd("php -l " . escapeshellarg($file)) . " 2>&1", $output, $code);
         if ($code !== 0) {
             echo "❌ " . implode("\n", $output) . "\n";
             $errors++;
@@ -98,7 +117,7 @@ PROMPT;
     $escaped = escapeshellarg($prompt);
     $summary = shell_exec("claude --print $escaped 2>/dev/null");
 
-    if (!empty(trim($summary))) {
+    if (!empty(trim((string)$summary))) {
         echo $summary . "\n";
     }
 

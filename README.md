@@ -59,6 +59,39 @@ make release
 | `make lint` | `da-lint` | Run available PHP linters with AI error summary |
 | `make release` | `da-release` | Bump semver, tag release with AI-generated changelog |
 
+## Configuration
+
+Create `.dev-agents.json` in your project root to customize behaviour:
+
+```json
+{
+    "runner": "make bash cmd=\"{cmd}\"",
+    "php": "php",
+    "lint": {
+        "phpstan": {
+            "cmd": "vendor/bin/phpstan analyse --no-progress --configuration=phpstan.neon"
+        },
+        "phpcs": {
+            "cmd": "vendor/bin/phpcs --standard=PSR12 src/"
+        }
+    },
+    "spec": {
+        "language": "cs",
+        "default_scope": ["src/", "tests/"]
+    }
+}
+```
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `runner` | Shell template wrapping every command. Use `{cmd}` as placeholder. | direct execution |
+| `php` | PHP binary. Wrapped by `runner` if set. | `php` |
+| `lint.*.cmd` | Override lint tool commands. If omitted, tools are auto-detected. | auto-detect |
+| `spec.language` | Language for generated task specs (`en`, `cs`, …) | `en` |
+| `spec.default_scope` | Paths always included in new task Scope sections | `[]` |
+
+If no `lint` section is present, tools are auto-detected from `vendor/bin`. If a project config file (`phpstan.neon`, `.phpcs.xml`) exists it is used; otherwise the bundled default from `vendor/tomashojgr/dev-agents/config/` is used as fallback.
+
 ## Task files
 
 Tasks are stored in `.tasks/<task-id>/TASK.md` in your project. Add `.tasks/` to `.gitignore` or commit them – your choice.
