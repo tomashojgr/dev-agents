@@ -1,6 +1,6 @@
 {
     "name": "tomashojgr/dev-agents",
-    "description": "Development agents for commit, lint and release automation",
+    "description": "PHP development workflow automation via AI-powered CLI agents (spec, approve, code, commit, lint, release)",
     "type": "composer-plugin",
     "license": "MIT",
     "require": {
