@@ -1,0 +1,32 @@
+{
+    "name": "tomashojgr/dev-agents",
+    "description": "Development agents for commit, lint and release automation",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4"
+    },
+    "require-dev": {
+        "composer/composer": "^2.0"
+    },
+    "bin": [
+        "agents/spec/da-spec",
+        "agents/approve/da-approve",
+        "agents/code/da-code",
+        "agents/commit/da-commit",
+        "agents/lint/da-lint",
+        "agents/release/da-release"
+    ],
+    "autoload": {
+        "psr-4": {
+            "DevAgents\\": "src/"
+        }
+    },
+    "scripts": {
+        "post-install-cmd": "DevAgents\\Installer::install",
+        "post-update-cmd": "DevAgents\\Installer::install"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

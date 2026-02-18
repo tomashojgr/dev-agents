@@ -1,0 +1,155 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../../vendor/autoload.php';
+
+use DevAgents\TaskLoader;
+
+// ── Arguments ─────────────────────────────────────────────────────────────────
+
+$taskId = $argv[1] ?? '';
+
+if ($taskId === '') {
+    echo "Usage: da-commit <task-id>\n";
+    echo "Example: da-commit task-001-dkim-validation\n";
+    exit(1);
+}
+
+// ── Load task ─────────────────────────────────────────────────────────────────
+
+$task = TaskLoader::load($taskId);
+
+// ── Git checks ────────────────────────────────────────────────────────────────
+
+exec('git rev-parse --git-dir 2>/dev/null', $out, $code);
+if ($code !== 0) {
+    echo "❌ Not a git repository\n";
+    exit(1);
+}
+
+$diff = shell_exec('git diff --staged');
+if (trim($diff) === '') {
+    echo "❌ No staged changes. Use 'git add' first.\n";
+    exit(1);
+}
+
+$changedFiles = trim(shell_exec('git diff --staged --name-only'));
+
+echo "📋 Staged files:\n$changedFiles\n\n";
+
+// ── Validate scope ────────────────────────────────────────────────────────────
+
+if (!empty($task['scope'])) {
+    $scopeFiles = $task['scope'];
+    $staged = explode("\n", $changedFiles);
+    $outOfScope = array_filter($staged, function (string $file) use ($scopeFiles): bool {
+        foreach ($scopeFiles as $allowed) {
+            if (str_starts_with($file, $allowed)) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    if (!empty($outOfScope)) {
+        echo "⚠️  Files outside task scope:\n";
+        foreach ($outOfScope as $file) {
+            echo "   $file\n";
+        }
+        echo "\nProceed anyway? [y/N] ";
+        $answer = strtolower(trim(fgets(STDIN)));
+        if ($answer !== 'y') {
+            echo "❌ Aborted\n";
+            exit(1);
+        }
+    }
+}
+
+// ── Build prompt ──────────────────────────────────────────────────────────────
+
+$prompt = <<<PROMPT
+Generate git commit message(s) following Conventional Commits standard.
+
+Task: {$task['goal']}
+
+Format: <type>(<scope>): <description>
+Types: feat, fix, chore, docs, refactor, test, style, perf, ci
+- scope optional but recommended
+- imperative mood, lowercase, no period, max 72 chars
+
+Rules:
+- If diff contains multiple logical changes, output MULTIPLE lines
+- Each message prefixed with "COMMIT: "
+- Output ONLY the COMMIT: lines, nothing else
+
+Changed files:
+$changedFiles
+
+Diff:
+$diff
+PROMPT;
+
+// ── Call claude CLI ───────────────────────────────────────────────────────────
+
+$escaped = escapeshellarg($prompt);
+$response = shell_exec("claude --print $escaped 2>/dev/null");
+
+if (empty($response)) {
+    echo "❌ No response from claude CLI\n";
+    exit(1);
+}
+
+// ── Parse commits ─────────────────────────────────────────────────────────────
+
+$commits = [];
+foreach (explode("\n", trim($response)) as $line) {
+    if (str_starts_with($line, 'COMMIT: ')) {
+        $commits[] = substr($line, 8);
+    }
+}
+
+if (count($commits) === 0) {
+    echo "❌ No commit messages generated\n";
+    echo $response . "\n";
+    exit(1);
+}
+
+// ── Validate format ───────────────────────────────────────────────────────────
+
+$pattern = '/^(feat|fix|chore|docs|refactor|test|style|perf|ci)(\(.+\))?: .{3,}/';
+
+foreach ($commits as $msg) {
+    if (!preg_match($pattern, $msg)) {
+        echo "❌ Invalid format: $msg\n";
+        exit(1);
+    }
+}
+
+// ── Confirm ───────────────────────────────────────────────────────────────────
+
+$count = count($commits);
+echo "💬 Generated $count commit(s):\n";
+foreach ($commits as $i => $msg) {
+    echo "  " . ($i + 1) . ". $msg\n";
+}
+echo "\nProceed? [Y/n] ";
+$answer = strtolower(trim(fgets(STDIN)));
+
+if ($answer === 'n') {
+    echo "❌ Aborted\n";
+    exit(1);
+}
+
+// ── Commit ────────────────────────────────────────────────────────────────────
+
+$first = array_shift($commits);
+passthru('git commit -m ' . escapeshellarg($first));
+
+foreach ($commits as $msg) {
+    echo "\n📝 Next commit (stage relevant files, then run):\n";
+    echo "   git commit -m " . escapeshellarg($msg) . "\n";
+}
+
+echo "\n✅ Done\n";

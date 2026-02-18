@@ -1,0 +1,84 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../../vendor/autoload.php';
+
+use DevAgents\TaskLoader;
+
+// ── Arguments ─────────────────────────────────────────────────────────────────
+
+$taskId = $argv[1] ?? '';
+
+if ($taskId === '') {
+    echo "Usage: da-approve <task-id>\n";
+    echo "Example: da-approve task-001-dkim-validation\n";
+    exit(1);
+}
+
+// ── Load and display task ─────────────────────────────────────────────────────
+
+$taskFile = getcwd() . '/.tasks/' . $taskId . '/TASK.md';
+
+if (!file_exists($taskFile)) {
+    echo "❌ Task not found: .tasks/{$taskId}/TASK.md\n";
+    exit(1);
+}
+
+$task = TaskLoader::load($taskId);
+
+if ($task['status'] === 'approved') {
+    echo "✅ Task already approved: {$taskId}\n";
+    exit(0);
+}
+
+if ($task['status'] === 'done') {
+    echo "✅ Task already done: {$taskId}\n";
+    exit(0);
+}
+
+// ── Show task summary ─────────────────────────────────────────────────────────
+
+echo "┌─────────────────────────────────────────────────────────────┐\n";
+echo "│ Task: {$taskId}\n";
+echo "├─────────────────────────────────────────────────────────────┤\n";
+
+$contents = $task['raw'];
+echo $contents . "\n";
+
+echo "└─────────────────────────────────────────────────────────────┘\n\n";
+
+// ── Confirm ───────────────────────────────────────────────────────────────────
+
+echo "Approve this task? [Y/n] ";
+$answer = strtolower(trim(fgets(STDIN)));
+
+if ($answer === 'n') {
+    echo "❌ Approval cancelled\n";
+    exit(1);
+}
+
+// ── Update status in TASK.md ──────────────────────────────────────────────────
+
+$updated = preg_replace(
+    '/^status:\s*.+$/m',
+    'status: approved',
+    $contents
+);
+
+if ($updated === $contents) {
+    // status line not found, add it after the opening ---
+    $updated = preg_replace(
+        '/^(---\n)/m',
+        "$1status: approved\n",
+        $contents,
+        1
+    );
+}
+
+file_put_contents($taskFile, $updated);
+
+echo "✅ Task approved: {$taskId}\n";
+echo "\nNext step:\n";
+echo "  make code TASK={$taskId}\n";

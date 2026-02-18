@@ -1,0 +1,102 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../../vendor/autoload.php';
+
+use DevAgents\TaskLoader;
+
+// ── Arguments ─────────────────────────────────────────────────────────────────
+
+$taskId = $argv[1] ?? '';
+
+if ($taskId === '') {
+    echo "Usage: da-code <task-id>\n";
+    echo "Example: da-code task-001-dkim-validation\n";
+    exit(1);
+}
+
+// ── Load task ─────────────────────────────────────────────────────────────────
+
+$task = TaskLoader::load($taskId);
+
+// ── Check approval ────────────────────────────────────────────────────────────
+
+if ($task['status'] !== 'approved') {
+    echo "❌ Task is not approved (status: {$task['status']})\n";
+    echo "   Run: make approve TASK={$taskId}\n";
+    exit(1);
+}
+
+// ── Check git state ───────────────────────────────────────────────────────────
+
+exec('git rev-parse --git-dir 2>/dev/null', $out, $code);
+if ($code !== 0) {
+    echo "❌ Not a git repository\n";
+    exit(1);
+}
+
+$dirty = trim(shell_exec('git status --porcelain'));
+if ($dirty !== '') {
+    echo "⚠️  Working tree has uncommitted changes:\n";
+    echo shell_exec('git status --short') . "\n";
+    echo "Proceed anyway? [y/N] ";
+    $answer = strtolower(trim(fgets(STDIN)));
+    if ($answer !== 'y') {
+        echo "❌ Aborted. Commit or stash changes first.\n";
+        exit(1);
+    }
+}
+
+// ── Build system prompt ───────────────────────────────────────────────────────
+
+$taskFile = getcwd() . '/.tasks/' . $taskId . '/TASK.md';
+$taskContents = file_get_contents($taskFile);
+
+$claudeMdContext = '';
+if (file_exists(getcwd() . '/CLAUDE.md')) {
+    $claudeMdContext = file_get_contents(getcwd() . '/CLAUDE.md');
+}
+
+$systemPrompt = <<<PROMPT
+You are an expert PHP developer implementing a well-defined task.
+
+{$claudeMdContext}
+
+Implement the following task exactly as specified. Follow the acceptance criteria. Stay within the defined scope. Do not make changes outside the scope.
+
+When done:
+1. Run any tests if a test suite exists
+2. Stage only files within the task scope with git add
+3. Report what was implemented
+
+TASK SPECIFICATION:
+{$taskContents}
+PROMPT;
+
+// ── Launch claude Code ────────────────────────────────────────────────────────
+
+echo "🚀 Starting Claude Code for task: {$taskId}\n";
+echo "   Goal: {$task['goal']}\n\n";
+
+$escaped = escapeshellarg($systemPrompt);
+
+// claude (Claude Code CLI) runs interactively
+passthru("claude \"$systemPrompt\"", $exitCode);
+
+if ($exitCode !== 0) {
+    echo "\n❌ Claude Code exited with code $exitCode\n";
+    exit($exitCode);
+}
+
+// ── Mark task as done ─────────────────────────────────────────────────────────
+
+$contents = file_get_contents($taskFile);
+$updated = preg_replace('/^status:\s*.+$/m', 'status: done', $contents);
+file_put_contents($taskFile, $updated);
+
+echo "\n✅ Task marked as done: {$taskId}\n";
+echo "\nNext steps:\n";
+echo "  git add <files>\n";
+echo "  make commit TASK={$taskId}\n";

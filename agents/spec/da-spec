@@ -1,0 +1,105 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../../vendor/autoload.php';
+
+// ── Arguments ─────────────────────────────────────────────────────────────────
+
+$goal = $argv[1] ?? '';
+
+if ($goal === '') {
+    echo "Usage: da-spec <task description>\n";
+    echo "Example: da-spec \"add DKIM validation to email sender\"\n";
+    exit(1);
+}
+
+// ── Generate task ID ──────────────────────────────────────────────────────────
+
+$tasksDir = getcwd() . '/.tasks';
+
+if (!is_dir($tasksDir)) {
+    mkdir($tasksDir, 0755, true);
+}
+
+// Find next task number
+$existing = glob($tasksDir . '/task-*/TASK.md');
+$nextNum = count($existing) + 1;
+$paddedNum = str_pad((string)$nextNum, 3, '0', STR_PAD_LEFT);
+
+// Slugify goal into task ID
+$slug = strtolower($goal);
+$slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
+$slug = trim($slug, '-');
+$slug = substr($slug, 0, 50);
+
+$taskId = "task-{$paddedNum}-{$slug}";
+$taskDir = "{$tasksDir}/{$taskId}";
+
+if (!mkdir($taskDir, 0755, true)) {
+    echo "❌ Failed to create task directory: $taskDir\n";
+    exit(1);
+}
+
+// ── Build prompt ──────────────────────────────────────────────────────────────
+
+$date = date('Y-m-d');
+$template = file_get_contents(__DIR__ . '/../../templates/TASK.md');
+
+// Detect project context
+$projectContext = '';
+if (file_exists(getcwd() . '/composer.json')) {
+    $composerJson = json_decode(file_get_contents(getcwd() . '/composer.json'), true);
+    $projectName = $composerJson['name'] ?? 'unknown';
+    $projectDesc = $composerJson['description'] ?? '';
+    $projectContext = "Project: $projectName\nDescription: $projectDesc\n";
+}
+
+if (file_exists(getcwd() . '/CLAUDE.md')) {
+    $claudeMd = file_get_contents(getcwd() . '/CLAUDE.md');
+    $projectContext .= "\nProject instructions from CLAUDE.md:\n$claudeMd\n";
+}
+
+$prompt = <<<PROMPT
+You are a software architect writing a task specification for a development agent.
+
+{$projectContext}
+
+Task goal: {$goal}
+
+Fill in the following TASK.md template. Replace all {{...}} placeholders and expand the sections with specific, actionable content based on the goal. Be concrete about scope (specific files/dirs), acceptance criteria (testable conditions), and implementation notes.
+
+Template:
+{$template}
+
+Replace:
+- {{TASK_ID}} with: {$taskId}
+- {{DATE}} with: {$date}
+- {{GOAL}} with: a clear 1-2 sentence description of the goal
+
+Output ONLY the filled TASK.md content, nothing else. No markdown fences.
+PROMPT;
+
+// ── Call claude CLI ───────────────────────────────────────────────────────────
+
+echo "🔍 Generating specification for: $goal\n";
+
+$escaped = escapeshellarg($prompt);
+$response = shell_exec("claude --print $escaped 2>/dev/null");
+
+if (empty(trim($response))) {
+    echo "❌ No response from claude CLI\n";
+    rmdir($taskDir);
+    exit(1);
+}
+
+// ── Write TASK.md ─────────────────────────────────────────────────────────────
+
+$taskFile = "{$taskDir}/TASK.md";
+file_put_contents($taskFile, trim($response) . "\n");
+
+echo "✅ Task created: .tasks/{$taskId}/TASK.md\n";
+echo "\nNext steps:\n";
+echo "  Review:  cat .tasks/{$taskId}/TASK.md\n";
+echo "  Approve: make approve TASK={$taskId}\n";

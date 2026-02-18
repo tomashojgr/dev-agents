@@ -1,0 +1,109 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../../vendor/autoload.php';
+
+// ── Detect available linters ──────────────────────────────────────────────────
+
+$cwd = getcwd();
+$tools = [];
+
+if (file_exists("$cwd/vendor/bin/phpstan")) {
+    $tools[] = ['name' => 'PHPStan', 'cmd' => 'vendor/bin/phpstan analyse --no-progress'];
+} elseif (shell_exec('which phpstan 2>/dev/null')) {
+    $tools[] = ['name' => 'PHPStan', 'cmd' => 'phpstan analyse --no-progress'];
+}
+
+if (file_exists("$cwd/vendor/bin/phpcs")) {
+    $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => 'vendor/bin/phpcs'];
+} elseif (shell_exec('which phpcs 2>/dev/null')) {
+    $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => 'phpcs'];
+}
+
+if (file_exists("$cwd/vendor/bin/php-cs-fixer")) {
+    $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => 'vendor/bin/php-cs-fixer fix --dry-run --diff'];
+} elseif (shell_exec('which php-cs-fixer 2>/dev/null')) {
+    $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => 'php-cs-fixer fix --dry-run --diff'];
+}
+
+if (file_exists("$cwd/vendor/bin/psalm")) {
+    $tools[] = ['name' => 'Psalm', 'cmd' => 'vendor/bin/psalm'];
+} elseif (shell_exec('which psalm 2>/dev/null')) {
+    $tools[] = ['name' => 'Psalm', 'cmd' => 'psalm'];
+}
+
+// Fallback: PHP syntax check
+if (empty($tools)) {
+    echo "ℹ️  No linters found (PHPStan, PHPCS, PHP CS Fixer, Psalm). Running PHP syntax check.\n\n";
+    $phpFiles = shell_exec("find $cwd/src -name '*.php' 2>/dev/null");
+    $files = array_filter(explode("\n", trim($phpFiles)));
+    $errors = 0;
+    foreach ($files as $file) {
+        exec("php -l " . escapeshellarg($file) . " 2>&1", $output, $code);
+        if ($code !== 0) {
+            echo "❌ " . implode("\n", $output) . "\n";
+            $errors++;
+        }
+    }
+    if ($errors === 0) {
+        echo "✅ PHP syntax OK (" . count($files) . " files)\n";
+    }
+    exit($errors > 0 ? 1 : 0);
+}
+
+// ── Run each linter ───────────────────────────────────────────────────────────
+
+$outputs = [];
+$failed = false;
+
+foreach ($tools as $tool) {
+    echo "▶ Running {$tool['name']}...\n";
+
+    $output = [];
+    $code = 0;
+    exec("cd " . escapeshellarg($cwd) . " && {$tool['cmd']} 2>&1", $output, $code);
+
+    $outputStr = implode("\n", $output);
+    $outputs[$tool['name']] = ['output' => $outputStr, 'code' => $code];
+
+    if ($code !== 0) {
+        $failed = true;
+        echo "❌ {$tool['name']} failed\n";
+    } else {
+        echo "✅ {$tool['name']} passed\n";
+    }
+}
+
+// ── AI analysis of failures ───────────────────────────────────────────────────
+
+$failedOutputs = array_filter($outputs, fn($r) => $r['code'] !== 0);
+
+if (!empty($failedOutputs)) {
+    echo "\n────────────────────────────────────────────────────────────\n";
+    echo "🤖 Asking Claude to summarize issues...\n\n";
+
+    $issueText = '';
+    foreach ($failedOutputs as $name => $result) {
+        $issueText .= "=== $name ===\n{$result['output']}\n\n";
+    }
+
+    $prompt = <<<PROMPT
+The following PHP linting tools reported errors. Summarize the key issues in plain language grouped by category (type errors, style issues, dead code, etc.). Be concise. For each issue suggest the fix in one line.
+
+{$issueText}
+PROMPT;
+
+    $escaped = escapeshellarg($prompt);
+    $summary = shell_exec("claude --print $escaped 2>/dev/null");
+
+    if (!empty(trim($summary))) {
+        echo $summary . "\n";
+    }
+
+    echo "\n❌ Lint failed\n";
+    exit(1);
+}
+
+echo "\n✅ All linters passed\n";
