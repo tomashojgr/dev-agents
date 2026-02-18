@@ -11,25 +11,7 @@ class Installer
     private const INCLUDE_LINE = "include vendor/tomashojgr/dev-agents/Makefile.agents";
     private const MAKEFILE = 'Makefile';
     private const CONFIG_FILE = '.dev-agents.json';
-    private const CONFIG_STUB = <<<'JSON'
-{
-    "ai": "claude",
-    "runner": null,
-    "php": "php",
-    "spec": {
-        "language": "en",
-        "default_scope": []
-    },
-    "lint": {
-        "phpstan": {
-            "cmd": null
-        },
-        "phpcs": {
-            "cmd": null
-        }
-    }
-}
-JSON;
+    private const CONFIG_TEMPLATE = __DIR__ . '/../config/.dev-agents.json';
 
     public static function run(IOInterface $io): void
     {
@@ -71,7 +53,7 @@ JSON;
             return;
         }
 
-        file_put_contents($config, self::CONFIG_STUB . "\n");
+        file_put_contents($config, file_get_contents(self::CONFIG_TEMPLATE));
         $io->write('<info>dev-agents: Created .dev-agents.json — edit to customise AI backend, runner, lint tools, etc.</info>');
     }
 }

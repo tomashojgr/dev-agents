@@ -1,0 +1,17 @@
+{
+    "ai": "claude",
+    "runner": null,
+    "php": "php",
+    "spec": {
+        "language": "en",
+        "default_scope": []
+    },
+    "lint": {
+        "phpstan": {
+            "cmd": null
+        },
+        "phpcs": {
+            "cmd": null
+        }
+    }
+}
