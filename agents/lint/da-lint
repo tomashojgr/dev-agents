@@ -49,7 +49,6 @@ if (empty($tools)) {
     echo "ℹ️  No linters found or configured. Running PHP syntax check.\n\n";
     $phpFiles = shell_exec("find $cwd/src -name '*.php' 2>/dev/null");
     $files = array_filter(explode("\n", trim((string)$phpFiles)));
-    $php = $config->phpBin();
     $errors = 0;
     foreach ($files as $file) {
         exec($config->phpBin() . " -l " . escapeshellarg($file) . " 2>&1", $output, $code);
