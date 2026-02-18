@@ -84,4 +84,26 @@ class Config
     {
         return $this->data['spec']['default_scope'] ?? [];
     }
+
+    /**
+     * Build a non-interactive AI call that prints response to stdout.
+     * Default: claude --print "<prompt>"
+     * Codex:   codex exec "<prompt>"
+     */
+    public function aiPrint(string $prompt): string
+    {
+        $bin = $this->data['ai']['print'] ?? 'claude --print';
+        return $bin . ' ' . escapeshellarg($prompt);
+    }
+
+    /**
+     * Build an interactive AI call (takes over the terminal).
+     * Default: claude "<prompt>"
+     * Codex:   codex "<prompt>"
+     */
+    public function aiInteractive(string $prompt): string
+    {
+        $bin = $this->data['ai']['interactive'] ?? 'claude';
+        return $bin . ' ' . escapeshellarg($prompt);
+    }
 }

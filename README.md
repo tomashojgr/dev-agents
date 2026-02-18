@@ -86,9 +86,21 @@ Create `.dev-agents.json` in your project root to customize behaviour:
 |-----|-------------|---------|
 | `runner` | Shell template wrapping every command. Use `{cmd}` as placeholder. | direct execution |
 | `php` | PHP binary. Wrapped by `runner` if set. | `php` |
+| `ai.print` | CLI command for non-interactive AI calls (spec, commit, lint, release) | `claude --print` |
+| `ai.interactive` | CLI command for interactive AI coding agent (code) | `claude` |
 | `lint.*.cmd` | Override lint tool commands. If omitted, tools are auto-detected. | auto-detect |
 | `spec.language` | Language for generated task specs (`en`, `cs`, …) | `en` |
 | `spec.default_scope` | Paths always included in new task Scope sections | `[]` |
+
+**Example – use Codex instead of Claude:**
+```json
+{
+    "ai": {
+        "interactive": "codex",
+        "print": "codex exec"
+    }
+}
+```
 
 If no `lint` section is present, tools are auto-detected from `vendor/bin`. If a project config file (`phpstan.neon`, `.phpcs.xml`) exists it is used; otherwise the bundled default from `vendor/tomashojgr/dev-agents/config/` is used as fallback.
 

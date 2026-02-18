@@ -91,10 +91,11 @@ Diff:
 $diff
 PROMPT;
 
-// ── Call claude CLI ───────────────────────────────────────────────────────────
+// ── Call AI CLI ───────────────────────────────────────────────────────────────
 
-$escaped = escapeshellarg($prompt);
-$response = shell_exec("claude --print $escaped 2>/dev/null");
+use DevAgents\Config;
+$config = new Config();
+$response = shell_exec($config->aiPrint($prompt) . ' 2>/dev/null');
 
 if (empty($response)) {
     echo "❌ No response from claude CLI\n";

@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 (function () { $dir = __DIR__; while (!file_exists($dir . '/vendor/autoload.php')) { $parent = dirname($dir); if ($parent === $dir) { fwrite(STDERR, "autoload.php not found\n"); exit(1); } $dir = $parent; } require $dir . '/vendor/autoload.php'; })();
 
+use DevAgents\Config;
 use DevAgents\TaskLoader;
 
 // ── Arguments ─────────────────────────────────────────────────────────────────
@@ -80,10 +81,10 @@ PROMPT;
 echo "🚀 Starting Claude Code for task: {$taskId}\n";
 echo "   Goal: {$task['goal']}\n\n";
 
-$escaped = escapeshellarg($systemPrompt);
+$config = new Config();
 
-// claude (Claude Code CLI) runs interactively
-passthru("claude \"$systemPrompt\"", $exitCode);
+// AI coding agent runs interactively (takes over the terminal)
+passthru($config->aiInteractive($systemPrompt), $exitCode);
 
 if ($exitCode !== 0) {
     echo "\n❌ Claude Code exited with code $exitCode\n";

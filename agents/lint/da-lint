@@ -114,8 +114,7 @@ The following PHP linting tools reported errors. Summarize the key issues in pla
 {$issueText}
 PROMPT;
 
-    $escaped = escapeshellarg($prompt);
-    $summary = shell_exec("claude --print $escaped 2>/dev/null");
+    $summary = shell_exec($config->aiPrint($prompt) . ' 2>/dev/null');
 
     if (!empty(trim((string)$summary))) {
         echo $summary . "\n";

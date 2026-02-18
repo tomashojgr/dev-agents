@@ -5,6 +5,10 @@ declare(strict_types=1);
 
 (function () { $dir = __DIR__; while (!file_exists($dir . '/vendor/autoload.php')) { $parent = dirname($dir); if ($parent === $dir) { fwrite(STDERR, "autoload.php not found\n"); exit(1); } $dir = $parent; } require $dir . '/vendor/autoload.php'; })();
 
+use DevAgents\Config;
+
+$config = new Config();
+
 // ── Git checks ────────────────────────────────────────────────────────────────
 
 exec('git rev-parse --git-dir 2>/dev/null', $out, $code);
@@ -62,8 +66,7 @@ CHANGELOG:
 - <bullet point per logical change, max 10>
 PROMPT;
 
-$escaped = escapeshellarg($prompt);
-$response = shell_exec("claude --print $escaped 2>/dev/null");
+$response = shell_exec($config->aiPrint($prompt) . ' 2>/dev/null');
 
 if (empty(trim($response))) {
     echo "❌ No response from claude CLI\n";

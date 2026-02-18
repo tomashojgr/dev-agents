@@ -100,8 +100,7 @@ PROMPT;
 
 echo "🔍 Generating specification for: $goal\n";
 
-$escaped = escapeshellarg($prompt);
-$response = shell_exec("claude --print $escaped 2>/dev/null");
+$response = shell_exec($config->aiPrint($prompt) . ' 2>/dev/null');
 
 if (empty(trim($response))) {
     echo "❌ No response from claude CLI\n";
