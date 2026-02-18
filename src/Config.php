@@ -61,12 +61,11 @@ class Config
     }
 
     /**
-     * PHP binary – used for syntax fallback check.
+     * PHP binary (without runner wrapper – use buildCmd() to wrap the full command).
      */
     public function phpBin(): string
     {
-        $php = $this->data['php'] ?? 'php';
-        return $this->buildCmd($php);
+        return $this->data['php'] ?? 'php';
     }
 
     /**

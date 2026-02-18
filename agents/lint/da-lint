@@ -51,7 +51,7 @@ if (empty($tools)) {
     $files = array_filter(explode("\n", trim((string)$phpFiles)));
     $errors = 0;
     foreach ($files as $file) {
-        exec($config->phpBin() . " -l " . escapeshellarg($file) . " 2>&1", $output, $code);
+        exec($config->buildCmd($config->phpBin() . " -l " . escapeshellarg($file)) . " 2>&1", $output, $code);
         if ($code !== 0) {
             echo "❌ " . implode("\n", $output) . "\n";
             $errors++;
