@@ -1,7 +1,6 @@
 {
     "ai": "claude",
     "runner": null,
-    "php": "php",
     "spec": {
         "language": "en",
         "default_scope": []

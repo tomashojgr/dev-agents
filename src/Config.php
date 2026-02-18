@@ -61,14 +61,6 @@ class Config
     }
 
     /**
-     * PHP binary (without runner wrapper – use buildCmd() to wrap the full command).
-     */
-    public function phpBin(): string
-    {
-        return $this->data['php'] ?? 'php';
-    }
-
-    /**
      * Language for spec generation ('en' default).
      */
     public function specLanguage(): string

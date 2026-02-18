@@ -67,7 +67,6 @@ make release
 {
     "ai": "claude",
     "runner": null,
-    "php": "php",
     "spec": {
         "language": "en",
         "default_scope": []
@@ -88,7 +87,6 @@ make release
 | `ai` | AI backend | `"claude"` (default), `"codex"`, or `"custom"` |
 | `ai_commands` | Custom AI commands — only when `"ai": "custom"` | `{"print": "my-ai --output", "interactive": "my-ai"}` |
 | `runner` | Shell wrapper for every command. `{cmd}` is replaced with the actual command. | `"make bash cmd=\"{cmd}\""` |
-| `php` | PHP binary used inside commands, wrapped by `runner` if set | `"php"` |
 | `spec.language` | Language for generated task specs | `"en"`, `"cs"`, … |
 | `spec.default_scope` | Paths always included in new task Scope sections | `["src/", "tests/"]` |
 | `lint` | Override lint tool commands. If empty, tools are auto-detected from `vendor/bin`. | `{"phpstan": {"cmd": "vendor/bin/phpstan analyse"}}` |
