@@ -88,12 +88,19 @@ make release
 | `ai` | AI backend | `"claude"` (default), `"codex"`, or `"custom"` |
 | `ai_commands` | Custom AI commands — only when `"ai": "custom"` | `{"print": "my-ai --output", "interactive": "my-ai"}` |
 | `runner` | Shell wrapper for every command. `{cmd}` is replaced with the actual command. | `"make bash cmd=\"{cmd}\""` |
-| `php` | PHP binary, wrapped by `runner` if set | `"php"` |
+| `php` | PHP binary used inside commands, wrapped by `runner` if set | `"php"` |
 | `spec.language` | Language for generated task specs | `"en"`, `"cs"`, … |
 | `spec.default_scope` | Paths always included in new task Scope sections | `["src/", "tests/"]` |
 | `lint` | Override lint tool commands. If empty, tools are auto-detected from `vendor/bin`. | `{"phpstan": {"cmd": "vendor/bin/phpstan analyse"}}` |
 
 Lint config files (`phpstan.neon`, `.phpcs.xml`) are created in your project root on install alongside `.dev-agents.json`. Edit them directly to customise lint rules.
+
+If your PHP binary is not called `php` (e.g. `php84`), set `DA_PHP` in your project's `Makefile` before the include line:
+
+```makefile
+DA_PHP := php84
+include vendor/tomashojgr/dev-agents/Makefile.agents
+```
 
 ## Task files
 
