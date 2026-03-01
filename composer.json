@@ -5,11 +5,9 @@
     "license": "MIT",
     "require": {
         "php": ">=8.4",
-        "composer-plugin-api": "^2.0"
+        "composer-plugin-api": "^2.9"
     },
-    "require-dev": {
-        "composer/composer": "^2.0"
-    },
+
     "bin": [
         "agents/spec/da-spec",
         "agents/approve/da-approve",
