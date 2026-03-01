@@ -9,8 +9,7 @@ use Composer\EventDispatcher\EventSubscriberInterface;
 use Composer\IO\IOInterface;
 use Composer\Plugin\PluginInterface;
 use Composer\Script\Event;
-use Composer\Installer\PackageEvent;
-use Composer\Installer\PackageEvents;
+use Composer\Script\ScriptEvents;
 
 class Plugin implements PluginInterface, EventSubscriberInterface
 {
@@ -30,24 +29,13 @@ class Plugin implements PluginInterface, EventSubscriberInterface
     public static function getSubscribedEvents(): array
     {
         return [
-            PackageEvents::POST_PACKAGE_INSTALL => 'onPackageInstall',
-            PackageEvents::POST_PACKAGE_UPDATE  => 'onPackageUpdate',
+            ScriptEvents::POST_INSTALL_CMD => 'onPostInstall',
+            ScriptEvents::POST_UPDATE_CMD  => 'onPostInstall',
         ];
     }
 
-    public function onPackageInstall(PackageEvent $event): void
+    public function onPostInstall(Event $event): void
     {
-        $package = $event->getOperation()->getPackage();
-        if ($package->getName() === 'tomashojgr/dev-agents') {
-            Installer::run($this->io);
-        }
-    }
-
-    public function onPackageUpdate(PackageEvent $event): void
-    {
-        $package = $event->getOperation()->getTargetPackage();
-        if ($package->getName() === 'tomashojgr/dev-agents') {
-            Installer::run($this->io);
-        }
+        Installer::run($event->getIO());
     }
 }
