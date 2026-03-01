@@ -133,6 +133,17 @@ if ($savePromptFile !== null) {
             }
         }
 
+        // Commit phpcbf changes if anything was modified
+        $diffLines = [];
+        exec('git diff --name-only 2>/dev/null', $diffLines);
+        if (!empty(array_filter($diffLines))) {
+            exec('git add -A 2>&1', $addOut, $addCode);
+            exec('git commit -m ' . escapeshellarg('style: auto-fix via phpcbf') . ' 2>&1', $commitOut, $commitCode);
+            if ($commitCode === 0) {
+                echo "✅ phpcbf changes committed\n";
+            }
+        }
+
         if (empty($failedOutputs)) {
             echo "\n✅ All linters passed after phpcbf\n";
             exit(0);
