@@ -6,38 +6,36 @@ DA_PHP_CMD ?= php
 
 # ── Task management ───────────────────────────────────────────────────────────
 
-.PHONY: spec
-spec: ## Create task specification. Usage: make spec TASK="add DKIM validation"
-	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make spec TASK="add DKIM validation"' && exit 1)
+.PHONY: da-spec
+da-spec: ## Create task specification. Usage: make da-spec TASK="add DKIM validation"
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-spec TASK="add DKIM validation"' && exit 1)
 	$(DA_PHP_CMD) $(AGENTS_BIN)/da-spec "$(TASK)"
 
-.PHONY: approve
-approve: ## Approve task specification. Usage: make approve TASK=task-001-dkim-validation
-	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make approve TASK=task-001-dkim-validation' && exit 1)
+.PHONY: da-approve
+da-approve: ## Approve task specification. Usage: make da-approve TASK=task-001-dkim-validation
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-approve TASK=task-001-dkim-validation' && exit 1)
 	$(DA_PHP_CMD) $(AGENTS_BIN)/da-approve "$(TASK)"
 
-.PHONY: code
-code: ## Start implementation of approved task. Usage: make code TASK=task-001-dkim-validation
-	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make code TASK=task-001-dkim-validation' && exit 1)
+.PHONY: da-code
+da-code: ## Start implementation of approved task. Usage: make da-code TASK=task-001-dkim-validation
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-code TASK=task-001-dkim-validation' && exit 1)
 	$(DA_PHP_CMD) $(AGENTS_BIN)/da-code "$(TASK)"
 
-# ── Agents ────────────────────────────────────────────────────────────────────
-
-.PHONY: commit
-commit: ## Run commit agent. Usage: make commit TASK=task-001-dkim-validation
-	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make commit TASK=task-001-dkim-validation' && exit 1)
+.PHONY: da-commit
+da-commit: ## Run commit agent. Usage: make da-commit TASK=task-001-dkim-validation
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-commit TASK=task-001-dkim-validation' && exit 1)
 	$(DA_PHP_CMD) $(AGENTS_BIN)/da-commit "$(TASK)"
 
-.PHONY: lint
-lint: ## Run lint agent.
+.PHONY: da-lint
+da-lint: ## Run lint agent.
 	$(DA_PHP_CMD) $(AGENTS_BIN)/da-lint
 
-.PHONY: lint-fix
-lint-fix: ## Run linters and launch Claude Code to fix issues interactively.
+.PHONY: da-lint-fix
+da-lint-fix: ## Run linters and launch Claude Code to fix issues interactively.
 	$(DA_PHP_CMD) $(AGENTS_BIN)/da-lint --save-prompt .dev-agents-lint || claude "$$(cat .dev-agents-lint)"
 
-.PHONY: release
-release: ## Run release agent.
+.PHONY: da-release
+da-release: ## Run release agent.
 	$(DA_PHP_CMD) $(AGENTS_BIN)/da-release
 
 # ── Help ──────────────────────────────────────────────────────────────────────

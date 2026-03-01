@@ -29,39 +29,39 @@ After install, `Makefile.agents` is automatically included in your project's `Ma
 
 ```bash
 # 1. Generate task specification
-make spec TASK="add DKIM validation to email sender"
+make da-spec TASK="add DKIM validation to email sender"
 
 # 2. Review .tasks/task-001-add-dkim-validation/TASK.md, then approve
-make approve TASK=task-001-add-dkim-validation
+make da-approve TASK=task-001-add-dkim-validation
 
 # 3. Implement (launches Claude Code interactively)
-make code TASK=task-001-add-dkim-validation
+make da-code TASK=task-001-add-dkim-validation
 
 # 4. Stage changes, then commit
 git add src/
-make commit TASK=task-001-add-dkim-validation
+make da-commit TASK=task-001-add-dkim-validation
 
 # 5. Lint (check only)
-make lint
+make da-lint
 
 # 5b. Lint and fix interactively with Claude Code (runs claude locally)
-make lint-fix
+make da-lint-fix
 
 # 6. Release
-make release
+make da-release
 ```
 
 ## Agents
 
 | Command | Binary | Description |
 |---------|--------|-------------|
-| `make spec TASK="..."` | `da-spec` | Generate `TASK.md` specification from a goal string |
-| `make approve TASK=...` | `da-approve` | Approve a task spec (sets `status: approved`) |
-| `make code TASK=...` | `da-code` | Launch Claude Code to implement an approved task |
-| `make commit TASK=...` | `da-commit` | Generate Conventional Commits message from staged diff |
-| `make lint` | `da-lint` | Run available PHP linters with AI error summary |
-| `make lint-fix` | — | Run linters in Docker, then launch Claude Code locally to fix issues |
-| `make release` | `da-release` | Bump semver, tag release with AI-generated changelog |
+| `make da-spec TASK="..."` | `da-spec` | Generate `TASK.md` specification from a goal string |
+| `make da-approve TASK=...` | `da-approve` | Approve a task spec (sets `status: approved`) |
+| `make da-code TASK=...` | `da-code` | Launch Claude Code to implement an approved task |
+| `make da-commit TASK=...` | `da-commit` | Generate Conventional Commits message from staged diff |
+| `make da-lint` | `da-lint` | Run available PHP linters with AI error summary |
+| `make da-lint-fix` | — | Run linters in Docker, then launch Claude Code locally to fix issues |
+| `make da-release` | `da-release` | Bump semver, tag release with AI-generated changelog |
 
 ## Configuration
 
