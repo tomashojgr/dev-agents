@@ -8,32 +8,24 @@ DA_PHP_CMD ?= php
 
 .PHONY: spec
 spec: ## Create task specification. Usage: make spec TASK="add DKIM validation"
-ifndef TASK
-	$(error TASK is required. Usage: make spec TASK="add DKIM validation")
-endif
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make spec TASK="add DKIM validation"' && exit 1)
 	$(DA_PHP_CMD) $(AGENTS_BIN)/da-spec "$(TASK)"
 
 .PHONY: approve
 approve: ## Approve task specification. Usage: make approve TASK=task-001-dkim-validation
-ifndef TASK
-	$(error TASK is required. Usage: make approve TASK=task-001-dkim-validation)
-endif
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make approve TASK=task-001-dkim-validation' && exit 1)
 	$(DA_PHP_CMD) $(AGENTS_BIN)/da-approve "$(TASK)"
 
 .PHONY: code
 code: ## Start implementation of approved task. Usage: make code TASK=task-001-dkim-validation
-ifndef TASK
-	$(error TASK is required. Usage: make code TASK=task-001-dkim-validation)
-endif
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make code TASK=task-001-dkim-validation' && exit 1)
 	$(DA_PHP_CMD) $(AGENTS_BIN)/da-code "$(TASK)"
 
 # ── Agents ────────────────────────────────────────────────────────────────────
 
 .PHONY: commit
 commit: ## Run commit agent. Usage: make commit TASK=task-001-dkim-validation
-ifndef TASK
-	$(error TASK is required. Usage: make commit TASK=task-001-dkim-validation)
-endif
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make commit TASK=task-001-dkim-validation' && exit 1)
 	$(DA_PHP_CMD) $(AGENTS_BIN)/da-commit "$(TASK)"
 
 .PHONY: lint
