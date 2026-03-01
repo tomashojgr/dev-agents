@@ -8,7 +8,13 @@ use Composer\IO\IOInterface;
 
 class Installer
 {
-    private const INCLUDE_LINE = "DA_PHP_CMD ?= php\ninclude vendor/tomashojgr/dev-agents/Makefile.agents";
+    private const MAKEFILE_BLOCK_BEGIN = '# BEGIN dev-agents — do not edit this block manually';
+    private const MAKEFILE_BLOCK_END   = '# END dev-agents';
+    private const MAKEFILE_BLOCK =
+        self::MAKEFILE_BLOCK_BEGIN . "\n" .
+        "DA_PHP_CMD ?= php\n" .
+        "include vendor/tomashojgr/dev-agents/Makefile.agents\n" .
+        self::MAKEFILE_BLOCK_END;
     private const MAKEFILE = 'Makefile';
     private const CONFIG_FILE = '.dev-agents.json';
     private const CONFIG_TEMPLATE = __DIR__ . '/../config/.dev-agents.json';
@@ -37,26 +43,40 @@ class Installer
         $makefile = getcwd() . '/' . self::MAKEFILE;
 
         if (!file_exists($makefile)) {
-            file_put_contents($makefile, self::INCLUDE_LINE . "\n");
+            file_put_contents($makefile, self::MAKEFILE_BLOCK . "\n");
             $io->write('<info>dev-agents: Created Makefile with dev-agents include</info>');
             return;
         }
 
         $contents = file_get_contents($makefile);
-        if (str_contains($contents, 'Makefile.agents')) {
-            // Makefile include already present — ensure DA_PHP_CMD is also there
-            if (!str_contains($contents, 'DA_PHP_CMD')) {
-                $contents = "DA_PHP_CMD ?= php\n" . $contents;
-                file_put_contents($makefile, $contents);
-                $io->write('<info>dev-agents: Added DA_PHP_CMD to Makefile</info>');
-            } else {
-                $io->write('<info>dev-agents: Makefile already configured</info>');
-            }
+
+        if (str_contains($contents, self::MAKEFILE_BLOCK_BEGIN)) {
+            $io->write('<info>dev-agents: Makefile already configured</info>');
             return;
         }
 
-        file_put_contents($makefile, self::INCLUDE_LINE . "\n\n" . $contents);
+        file_put_contents($makefile, rtrim($contents) . "\n\n" . self::MAKEFILE_BLOCK . "\n");
         $io->write('<info>dev-agents: Added dev-agents include to Makefile</info>');
+    }
+
+    public static function runUninstall(IOInterface $io): void
+    {
+        $makefile = getcwd() . '/' . self::MAKEFILE;
+
+        if (!file_exists($makefile)) {
+            return;
+        }
+
+        $contents = file_get_contents($makefile);
+
+        if (!str_contains($contents, self::MAKEFILE_BLOCK_BEGIN)) {
+            return;
+        }
+
+        $pattern = '/\n?' . preg_quote(self::MAKEFILE_BLOCK_BEGIN, '/') . '.*?' . preg_quote(self::MAKEFILE_BLOCK_END, '/') . '\n?/s';
+        $cleaned = preg_replace($pattern, '', $contents);
+        file_put_contents($makefile, $cleaned);
+        $io->write('<info>dev-agents: Removed dev-agents block from Makefile</info>');
     }
 
     private static function ensureConfig(IOInterface $io): void

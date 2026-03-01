@@ -24,7 +24,10 @@ class Plugin implements PluginInterface, EventSubscriberInterface
 
     public function deactivate(Composer $composer, IOInterface $io): void {}
 
-    public function uninstall(Composer $composer, IOInterface $io): void {}
+    public function uninstall(Composer $composer, IOInterface $io): void
+    {
+        Installer::runUninstall($io);
+    }
 
     public static function getSubscribedEvents(): array
     {
