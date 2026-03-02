@@ -12,12 +12,12 @@ class Installer
     private const MAKEFILE_BLOCK_END   = '# END dev-agents';
     private const MAKEFILE_BLOCK =
         self::MAKEFILE_BLOCK_BEGIN . "\n" .
-        "DA_PHP_CMD ?= php\n" .
+        "# Set to your AI CLI tool (e.g. 'codex exec' / 'codex' for OpenAI Codex):\n" .
+        "DA_AI_PRINT ?= claude --print\n" .
+        "DA_AI_RUN   ?= claude\n" .
         "include vendor/tomashojgr/dev-agents/Makefile.agents\n" .
         self::MAKEFILE_BLOCK_END;
     private const MAKEFILE = 'Makefile';
-    private const CONFIG_FILE = '.dev-agents.json';
-    private const CONFIG_TEMPLATE = __DIR__ . '/../config/.dev-agents.json';
 
     private const LINT_CONFIGS = [
         'phpstan.neon' => ['template' => __DIR__ . '/../config/phpstan.neon',  'bin' => 'phpstan'],
@@ -33,7 +33,6 @@ class Installer
         }
 
         self::ensureMakefile($io);
-        self::ensureConfig($io);
         self::ensureLintConfigs($io);
         self::ensureGitignore($io);
     }
@@ -77,18 +76,6 @@ class Installer
         $cleaned = preg_replace($pattern, '', $contents);
         file_put_contents($makefile, $cleaned);
         $io->write('<info>dev-agents: Removed dev-agents block from Makefile</info>');
-    }
-
-    private static function ensureConfig(IOInterface $io): void
-    {
-        $config = getcwd() . '/' . self::CONFIG_FILE;
-
-        if (file_exists($config)) {
-            return;
-        }
-
-        file_put_contents($config, file_get_contents(self::CONFIG_TEMPLATE));
-        $io->write('<info>dev-agents: Created .dev-agents.json — edit to customise AI backend, lint tools, etc.</info>');
     }
 
     private static function ensureGitignore(IOInterface $io): void

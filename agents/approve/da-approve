@@ -1,84 +1,54 @@
-#!/usr/bin/env php
-<?php
+#!/usr/bin/env bash
+set -euo pipefail
 
-declare(strict_types=1);
+TASK_ID="${1:-}"
+if [ -z "$TASK_ID" ]; then
+    echo "Usage: da-approve <task-id>"
+    echo "Example: da-approve task-001-dkim-validation"
+    exit 1
+fi
 
-(function () { $dir = __DIR__; while (!file_exists($dir . '/vendor/autoload.php')) { $parent = dirname($dir); if ($parent === $dir) { fwrite(STDERR, "autoload.php not found\n"); exit(1); } $dir = $parent; } require $dir . '/vendor/autoload.php'; })();
+TASK_FILE=".tasks/${TASK_ID}/TASK.md"
+if [ ! -f "$TASK_FILE" ]; then
+    echo "❌ Task not found: ${TASK_FILE}"
+    exit 1
+fi
 
-use DevAgents\TaskLoader;
+STATUS=$(grep -m1 '^status:' "$TASK_FILE" | sed 's/^status:[[:space:]]*//' || echo "draft")
 
-// ── Arguments ─────────────────────────────────────────────────────────────────
+if [ "$STATUS" = "approved" ]; then
+    echo "✅ Task already approved: ${TASK_ID}"
+    exit 0
+fi
 
-$taskId = $argv[1] ?? '';
+if [ "$STATUS" = "done" ]; then
+    echo "✅ Task already done: ${TASK_ID}"
+    exit 0
+fi
 
-if ($taskId === '') {
-    echo "Usage: da-approve <task-id>\n";
-    echo "Example: da-approve task-001-dkim-validation\n";
-    exit(1);
-}
+echo "┌─────────────────────────────────────────────────────────────┐"
+echo "│ Task: ${TASK_ID}"
+echo "├─────────────────────────────────────────────────────────────┤"
+echo ""
+cat "$TASK_FILE"
+echo ""
+echo "└─────────────────────────────────────────────────────────────┘"
+echo ""
 
-// ── Load and display task ─────────────────────────────────────────────────────
+printf 'Approve this task? [Y/n] '
+read -r ANSWER
+ANSWER=$(printf '%s' "$ANSWER" | tr '[:upper:]' '[:lower:]')
 
-$taskFile = getcwd() . '/.tasks/' . $taskId . '/TASK.md';
+if [ "$ANSWER" = "n" ]; then
+    echo "❌ Approval cancelled"
+    exit 1
+fi
 
-if (!file_exists($taskFile)) {
-    echo "❌ Task not found: .tasks/{$taskId}/TASK.md\n";
-    exit(1);
-}
+TMP=$(mktemp)
+sed 's/^status:[[:space:]]*.*/status: approved/' "$TASK_FILE" > "$TMP"
+mv "$TMP" "$TASK_FILE"
 
-$task = TaskLoader::load($taskId);
-
-if ($task['status'] === 'approved') {
-    echo "✅ Task already approved: {$taskId}\n";
-    exit(0);
-}
-
-if ($task['status'] === 'done') {
-    echo "✅ Task already done: {$taskId}\n";
-    exit(0);
-}
-
-// ── Show task summary ─────────────────────────────────────────────────────────
-
-echo "┌─────────────────────────────────────────────────────────────┐\n";
-echo "│ Task: {$taskId}\n";
-echo "├─────────────────────────────────────────────────────────────┤\n";
-
-$contents = $task['raw'];
-echo $contents . "\n";
-
-echo "└─────────────────────────────────────────────────────────────┘\n\n";
-
-// ── Confirm ───────────────────────────────────────────────────────────────────
-
-echo "Approve this task? [Y/n] ";
-$answer = strtolower(trim(fgets(STDIN)));
-
-if ($answer === 'n') {
-    echo "❌ Approval cancelled\n";
-    exit(1);
-}
-
-// ── Update status in TASK.md ──────────────────────────────────────────────────
-
-$updated = preg_replace(
-    '/^status:\s*.+$/m',
-    'status: approved',
-    $contents
-);
-
-if ($updated === $contents) {
-    // status line not found, add it after the opening ---
-    $updated = preg_replace(
-        '/^(---\n)/m',
-        "$1status: approved\n",
-        $contents,
-        1
-    );
-}
-
-file_put_contents($taskFile, $updated);
-
-echo "✅ Task approved: {$taskId}\n";
-echo "\nNext step:\n";
-echo "  make code TASK={$taskId}\n";
+echo "✅ Task approved: ${TASK_ID}"
+echo ""
+echo "Next step:"
+echo "  make da-code TASK=${TASK_ID}"

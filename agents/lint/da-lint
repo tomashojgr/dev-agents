@@ -1,163 +1,145 @@
-#!/usr/bin/env php
-<?php
+#!/usr/bin/env bash
+set -euo pipefail
 
-declare(strict_types=1);
+CWD="$(pwd)"
+SAVE_PROMPT_FILE=""
 
-(function () { $dir = __DIR__; while (!file_exists($dir . '/vendor/autoload.php')) { $parent = dirname($dir); if ($parent === $dir) { fwrite(STDERR, "autoload.php not found\n"); exit(1); } $dir = $parent; } require $dir . '/vendor/autoload.php'; })();
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --save-prompt)
+            SAVE_PROMPT_FILE="$2"
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
 
-use DevAgents\Config;
+# ── Resolve tools ──────────────────────────────────────────────────────────────
 
-$config = new Config();
-$cwd = getcwd();
+declare -a TOOL_NAMES=()
+declare -a TOOL_CMDS=()
 
-// ── Arguments ─────────────────────────────────────────────────────────────────
+if [ -f "$CWD/vendor/bin/phpstan" ]; then
+    TOOL_NAMES+=("PHPStan"); TOOL_CMDS+=("vendor/bin/phpstan analyse --no-progress")
+elif command -v phpstan >/dev/null 2>&1; then
+    TOOL_NAMES+=("PHPStan"); TOOL_CMDS+=("phpstan analyse --no-progress")
+fi
 
-$savePromptFile = null;
-foreach ($argv as $i => $arg) {
-    if ($arg === '--save-prompt' && isset($argv[$i + 1])) {
-        $savePromptFile = $argv[$i + 1];
-    }
-}
+if [ -f "$CWD/vendor/bin/phpcs" ]; then
+    TOOL_NAMES+=("PHP_CodeSniffer"); TOOL_CMDS+=("vendor/bin/phpcs")
+elif command -v phpcs >/dev/null 2>&1; then
+    TOOL_NAMES+=("PHP_CodeSniffer"); TOOL_CMDS+=("phpcs")
+fi
 
-// ── Resolve tools ─────────────────────────────────────────────────────────────
+if [ -f "$CWD/vendor/bin/php-cs-fixer" ]; then
+    TOOL_NAMES+=("PHP CS Fixer"); TOOL_CMDS+=("vendor/bin/php-cs-fixer fix --dry-run --diff")
+elif command -v php-cs-fixer >/dev/null 2>&1; then
+    TOOL_NAMES+=("PHP CS Fixer"); TOOL_CMDS+=("php-cs-fixer fix --dry-run --diff")
+fi
 
-$tools = $config->lintTools();
+if [ -f "$CWD/vendor/bin/psalm" ]; then
+    TOOL_NAMES+=("Psalm"); TOOL_CMDS+=("vendor/bin/psalm")
+elif command -v psalm >/dev/null 2>&1; then
+    TOOL_NAMES+=("Psalm"); TOOL_CMDS+=("psalm")
+fi
 
-if ($tools === null) {
-    // Auto-detect – use project config files if present, else our defaults
-    $tools = [];
+# ── Fallback ───────────────────────────────────────────────────────────────────
 
-    if (file_exists("$cwd/vendor/bin/phpstan")) {
-        $tools[] = ['name' => 'PHPStan', 'cmd' => "vendor/bin/phpstan analyse --no-progress"];
-    } elseif (exec('which phpstan 2>/dev/null')) {
-        $tools[] = ['name' => 'PHPStan', 'cmd' => "phpstan analyse --no-progress"];
-    }
+if [ ${#TOOL_NAMES[@]} -eq 0 ]; then
+    echo "ℹ️  No linters found in vendor/bin or PATH. Install phpstan or phpcs to enable linting."
+    exit 0
+fi
 
-    if (file_exists("$cwd/vendor/bin/phpcs")) {
-        $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => "vendor/bin/phpcs"];
-    } elseif (exec('which phpcs 2>/dev/null')) {
-        $tools[] = ['name' => 'PHP_CodeSniffer', 'cmd' => "phpcs"];
-    }
+# ── Run each linter ────────────────────────────────────────────────────────────
 
-    if (file_exists("$cwd/vendor/bin/php-cs-fixer")) {
-        $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => 'vendor/bin/php-cs-fixer fix --dry-run --diff'];
-    } elseif (exec('which php-cs-fixer 2>/dev/null')) {
-        $tools[] = ['name' => 'PHP CS Fixer', 'cmd' => 'php-cs-fixer fix --dry-run --diff'];
-    }
+declare -a FAILED_NAMES=()
+declare -a FAILED_OUTPUTS=()
 
-    if (file_exists("$cwd/vendor/bin/psalm")) {
-        $tools[] = ['name' => 'Psalm', 'cmd' => 'vendor/bin/psalm'];
-    } elseif (exec('which psalm 2>/dev/null')) {
-        $tools[] = ['name' => 'Psalm', 'cmd' => 'psalm'];
-    }
-}
+for i in "${!TOOL_NAMES[@]}"; do
+    NAME="${TOOL_NAMES[$i]}"
+    CMD="${TOOL_CMDS[$i]}"
+    echo "▶ Running ${NAME}..."
 
-// ── Fallback: PHP syntax check ────────────────────────────────────────────────
+    TOOL_FAILED=0
+    OUTPUT=$(cd "$CWD" && eval "$CMD" 2>&1) || TOOL_FAILED=$?
 
-if (empty($tools)) {
-    echo "ℹ️  No linters found or configured. Running PHP syntax check.\n\n";
-    exec("find " . escapeshellarg("$cwd/src") . " -name '*.php' 2>/dev/null", $phpFilesArr);
-    $phpFiles = implode("\n", $phpFilesArr);
-    $files = array_filter(explode("\n", trim($phpFiles)));
-    $errors = 0;
-    foreach ($files as $file) {
-        exec(PHP_BINARY . " -l " . escapeshellarg($file) . " 2>&1", $output, $code);
-        if ($code !== 0) {
-            echo "❌ " . implode("\n", $output) . "\n";
-            $errors++;
-        }
-    }
-    if ($errors === 0) {
-        echo "✅ PHP syntax OK (" . count($files) . " files)\n";
-    }
-    exit($errors > 0 ? 1 : 0);
-}
+    if [ "$TOOL_FAILED" -ne 0 ]; then
+        echo "❌ ${NAME} failed"
+        echo ""
+        echo "$OUTPUT"
+        echo ""
+        FAILED_NAMES+=("$NAME")
+        FAILED_OUTPUTS+=("$OUTPUT")
+    else
+        echo "✅ ${NAME} passed"
+    fi
+done
 
-// ── Run each linter ───────────────────────────────────────────────────────────
+if [ ${#FAILED_NAMES[@]} -eq 0 ]; then
+    echo ""
+    echo "✅ All linters passed"
+    exit 0
+fi
 
-$outputs = [];
+# ── Save-prompt mode ───────────────────────────────────────────────────────────
 
-foreach ($tools as $tool) {
-    echo "▶ Running {$tool['name']}...\n";
+if [ -n "$SAVE_PROMPT_FILE" ]; then
+    # Run phpcbf first if available
+    PHPCBF_CMD=""
+    if [ -f "$CWD/vendor/bin/phpcbf" ]; then
+        PHPCBF_CMD="vendor/bin/phpcbf"
+    elif command -v phpcbf >/dev/null 2>&1; then
+        PHPCBF_CMD="phpcbf"
+    fi
 
-    $output = [];
-    $code = 0;
-    exec("cd " . escapeshellarg($cwd) . " && {$tool['cmd']} 2>&1", $output, $code);
+    if [ -n "$PHPCBF_CMD" ]; then
+        echo ""
+        echo "▶ Running phpcbf (auto-fix style issues)..."
+        cd "$CWD" && eval "$PHPCBF_CMD" 2>&1 || true
 
-    $outputStr = implode("\n", $output);
-    $outputs[$tool['name']] = ['output' => $outputStr, 'code' => $code];
+        echo ""
+        echo "▶ Re-running linters after phpcbf..."
+        FAILED_NAMES=()
+        FAILED_OUTPUTS=()
 
-    if ($code !== 0) {
-        echo "❌ {$tool['name']} failed\n";
-        echo "\n" . $outputStr . "\n\n";
-    } else {
-        echo "✅ {$tool['name']} passed\n";
-    }
-}
+        for i in "${!TOOL_NAMES[@]}"; do
+            NAME="${TOOL_NAMES[$i]}"
+            CMD="${TOOL_CMDS[$i]}"
+            TOOL_FAILED=0
+            OUTPUT=$(cd "$CWD" && eval "$CMD" 2>&1) || TOOL_FAILED=$?
+            if [ "$TOOL_FAILED" -ne 0 ]; then
+                echo "❌ ${NAME} still failing"
+                FAILED_NAMES+=("$NAME")
+                FAILED_OUTPUTS+=("$OUTPUT")
+            else
+                echo "✅ ${NAME} passed"
+            fi
+        done
 
-// ── Handle failures ───────────────────────────────────────────────────────────
+        CHANGED=$(git diff --name-only 2>/dev/null || true)
+        if [ -n "$CHANGED" ]; then
+            git add -A
+            git commit -m "style: auto-fix via phpcbf" && echo "✅ phpcbf changes committed" || true
+        fi
 
-$failedOutputs = array_filter($outputs, fn($r) => $r['code'] !== 0);
+        if [ ${#FAILED_NAMES[@]} -eq 0 ]; then
+            echo ""
+            echo "✅ All linters passed after phpcbf"
+            exit 0
+        fi
+    fi
 
-if (empty($failedOutputs)) {
-    echo "\n✅ All linters passed\n";
-    exit(0);
-}
+    ISSUE_TEXT=""
+    for i in "${!FAILED_NAMES[@]}"; do
+        ISSUE_TEXT="${ISSUE_TEXT}=== ${FAILED_NAMES[$i]} ===
+${FAILED_OUTPUTS[$i]}
 
-if ($savePromptFile !== null) {
-    // Run phpcbf first if available — fixes style issues automatically
-    $phpcbfCmd = null;
-    if (file_exists("$cwd/vendor/bin/phpcbf")) {
-        $phpcbfCmd = "vendor/bin/phpcbf";
-    } elseif (exec('which phpcbf 2>/dev/null')) {
-        $phpcbfCmd = "phpcbf";
-    }
+"
+    done
 
-    if ($phpcbfCmd !== null) {
-        echo "\n▶ Running phpcbf (auto-fix style issues)...\n";
-        exec("cd " . escapeshellarg($cwd) . " && {$phpcbfCmd} 2>&1", $cbfOutput, $cbfCode);
-        echo implode("\n", $cbfOutput) . "\n";
-
-        // Re-run linters to see what remains after phpcbf
-        echo "\n▶ Re-running linters after phpcbf...\n";
-        $failedOutputs = [];
-        foreach ($tools as $tool) {
-            $output = [];
-            $code = 0;
-            exec("cd " . escapeshellarg($cwd) . " && {$tool['cmd']} 2>&1", $output, $code);
-            if ($code !== 0) {
-                echo "❌ {$tool['name']} still failing\n";
-                $failedOutputs[$tool['name']] = ['output' => implode("\n", $output), 'code' => $code];
-            } else {
-                echo "✅ {$tool['name']} passed\n";
-            }
-        }
-
-        // Commit phpcbf changes if anything was modified
-        $diffLines = [];
-        exec('git diff --name-only 2>/dev/null', $diffLines);
-        if (!empty(array_filter($diffLines))) {
-            exec('git add -A 2>&1', $addOut, $addCode);
-            exec('git commit -m ' . escapeshellarg('style: auto-fix via phpcbf') . ' 2>&1', $commitOut, $commitCode);
-            if ($commitCode === 0) {
-                echo "✅ phpcbf changes committed\n";
-            }
-        }
-
-        if (empty($failedOutputs)) {
-            echo "\n✅ All linters passed after phpcbf\n";
-            exit(0);
-        }
-    }
-
-    // Save prompt to file for the caller (e.g. Makefile) to pass to AI
-    $issueText = '';
-    foreach ($failedOutputs as $name => $result) {
-        $issueText .= "=== $name ===\n{$result['output']}\n\n";
-    }
-
-    $prompt = <<<PROMPT
-You are an expert PHP developer. The following linters reported errors in this project.
+    PROMPT="You are an expert PHP developer. The following linters reported errors in this project.
 
 Fix all reported issues. Stay within the affected files — do not refactor unrelated code.
 
@@ -166,12 +148,13 @@ When done:
 2. Report a summary of what was changed
 
 LINT OUTPUT:
-{$issueText}
-PROMPT;
+${ISSUE_TEXT}"
 
-    file_put_contents($savePromptFile, $prompt);
-    echo "\nℹ️  Prompt saved to {$savePromptFile}\n";
-}
+    printf '%s' "$PROMPT" > "$SAVE_PROMPT_FILE"
+    echo ""
+    echo "ℹ️  Prompt saved to ${SAVE_PROMPT_FILE}"
+fi
 
-echo "\n❌ Lint failed\n";
-exit(1);
+echo ""
+echo "❌ Lint failed"
+exit 1

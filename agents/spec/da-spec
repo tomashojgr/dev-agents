@@ -1,121 +1,90 @@
-#!/usr/bin/env php
-<?php
+#!/usr/bin/env bash
+set -euo pipefail
 
-declare(strict_types=1);
+GOAL="${1:-}"
+if [ -z "$GOAL" ]; then
+    echo "Usage: da-spec <task description>"
+    echo 'Example: da-spec "add DKIM validation to email sender"'
+    exit 1
+fi
 
-(function () { $dir = __DIR__; while (!file_exists($dir . '/vendor/autoload.php')) { $parent = dirname($dir); if ($parent === $dir) { fwrite(STDERR, "autoload.php not found\n"); exit(1); } $dir = $parent; } require $dir . '/vendor/autoload.php'; })();
+TASKS_DIR=".tasks"
+DA_PKG="vendor/tomashojgr/dev-agents"
 
-use DevAgents\Config;
+mkdir -p "$TASKS_DIR"
 
-// ── Arguments ─────────────────────────────────────────────────────────────────
+# Find next task number
+NEXT_NUM=$(find "$TASKS_DIR" -maxdepth 2 -name 'TASK.md' 2>/dev/null | wc -l | tr -d ' ')
+NEXT_NUM=$((NEXT_NUM + 1))
+PADDED=$(printf '%03d' "$NEXT_NUM")
 
-$goal = $argv[1] ?? '';
+# Slugify goal
+SLUG=$(printf '%s' "$GOAL" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/-\+/-/g; s/^-\+//; s/-\+$//' | cut -c1-50)
 
-if ($goal === '') {
-    echo "Usage: da-spec <task description>\n";
-    echo "Example: da-spec \"add DKIM validation to email sender\"\n";
-    exit(1);
-}
+TASK_ID="task-${PADDED}-${SLUG}"
+TASK_DIR="${TASKS_DIR}/${TASK_ID}"
+TASK_FILE="${TASK_DIR}/TASK.md"
 
-// ── Generate task ID ──────────────────────────────────────────────────────────
+mkdir -p "$TASK_DIR"
 
-$tasksDir = getcwd() . '/.tasks';
+DATE=$(date +%Y-%m-%d)
+TEMPLATE=$(cat "$DA_PKG/templates/TASK.md")
 
-if (!is_dir($tasksDir)) {
-    mkdir($tasksDir, 0755, true);
-}
+# Detect project context
+PROJECT_CONTEXT=""
+if [ -f "composer.json" ]; then
+    NAME=$(sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' composer.json | head -1)
+    DESC=$(sed -n 's/.*"description"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' composer.json | head -1)
+    PROJECT_CONTEXT="Project: ${NAME}
+Description: ${DESC}
+"
+fi
 
-// Find next task number
-$existing = glob($tasksDir . '/task-*/TASK.md');
-$nextNum = count($existing) + 1;
-$paddedNum = str_pad((string)$nextNum, 3, '0', STR_PAD_LEFT);
+if [ -f "CLAUDE.md" ]; then
+    PROJECT_CONTEXT="${PROJECT_CONTEXT}
+Project instructions from CLAUDE.md:
+$(cat CLAUDE.md)
+"
+fi
 
-// Slugify goal into task ID
-$slug = strtolower($goal);
-$slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
-$slug = trim($slug, '-');
-$slug = substr($slug, 0, 50);
+PROMPT="You are a software architect helping a developer turn an idea into a precise task specification.
 
-$taskId = "task-{$paddedNum}-{$slug}";
-$taskDir = "{$tasksDir}/{$taskId}";
+${PROJECT_CONTEXT}
+Task goal: ${GOAL}
+Task ID:   ${TASK_ID}
+Date:      ${DATE}
 
-if (!mkdir($taskDir, 0755, true)) {
-    echo "❌ Failed to create task directory: $taskDir\n";
-    exit(1);
-}
+Have a natural conversation with the developer to fully understand the requirements. You can raise multiple concerns at once, ask about scope, edge cases, constraints, expected behaviour, or suggest approaches. Drive the discussion until the requirements are clear.
 
-// ── Build prompt ──────────────────────────────────────────────────────────────
+When the developer says something like 'ok, zapiš to', 'ok, write it', 'done', or 'generate' — write the completed specification to the file ${TASK_FILE} using this template:
 
-$config = new Config();
-$date = date('Y-m-d');
-$template = file_get_contents(__DIR__ . '/../../templates/TASK.md');
-$language = $config->specLanguage();
-$defaultScope = $config->specDefaultScope();
+${TEMPLATE}
 
-// Detect project context
-$projectContext = '';
-if (file_exists(getcwd() . '/composer.json')) {
-    $composerJson = json_decode(file_get_contents(getcwd() . '/composer.json'), true);
-    $projectName = $composerJson['name'] ?? 'unknown';
-    $projectDesc = $composerJson['description'] ?? '';
-    $projectContext = "Project: $projectName\nDescription: $projectDesc\n";
-}
+Fill in all {{...}} placeholders based on everything discussed. Be concrete about scope (specific files/dirs), acceptance criteria (testable conditions), and implementation notes. Set status to 'draft'.
 
-if (file_exists(getcwd() . '/CLAUDE.md')) {
-    $claudeMd = file_get_contents(getcwd() . '/CLAUDE.md');
-    $projectContext .= "\nProject instructions from CLAUDE.md:\n$claudeMd\n";
-}
+Do not create the file until the developer confirms."
 
-$languageInstruction = $language !== 'en'
-    ? "Write the specification in language: {$language}."
-    : '';
+read -ra AI_RUN <<< "${DA_AI_RUN:-claude}"
+"${AI_RUN[@]}" "$PROMPT"
+EXIT_CODE=$?
 
-$defaultScopeInstruction = !empty($defaultScope)
-    ? "Always include these paths in the Scope section: " . implode(', ', $defaultScope) . "."
-    : '';
+if [ $EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "❌ AI agent exited with code $EXIT_CODE"
+    rmdir "$TASK_DIR" 2>/dev/null || true
+    exit $EXIT_CODE
+fi
 
-$prompt = <<<PROMPT
-You are a software architect writing a task specification for a development agent.
-{$languageInstruction}
-{$defaultScopeInstruction}
+if [ ! -f "$TASK_FILE" ]; then
+    echo ""
+    echo "❌ TASK.md was not created. Tell the agent 'ok, zapiš to' to generate the spec."
+    rmdir "$TASK_DIR" 2>/dev/null || true
+    exit 1
+fi
 
-{$projectContext}
-
-Task goal: {$goal}
-
-Fill in the following TASK.md template. Replace all {{...}} placeholders and expand the sections with specific, actionable content based on the goal. Be concrete about scope (specific files/dirs), acceptance criteria (testable conditions), and implementation notes.
-
-Template:
-{$template}
-
-Replace:
-- {{TASK_ID}} with: {$taskId}
-- {{DATE}} with: {$date}
-- {{GOAL}} with: a clear 1-2 sentence description of the goal
-
-Output ONLY the filled TASK.md content, nothing else. No markdown fences.
-PROMPT;
-
-// ── Call claude CLI ───────────────────────────────────────────────────────────
-
-echo "🔍 Generating specification for: $goal\n";
-
-$responseLines = [];
-exec($config->aiPrint($prompt) . ' 2>/dev/null', $responseLines);
-$response = implode("\n", $responseLines);
-
-if (empty(trim($response))) {
-    echo "❌ No response from claude CLI\n";
-    rmdir($taskDir);
-    exit(1);
-}
-
-// ── Write TASK.md ─────────────────────────────────────────────────────────────
-
-$taskFile = "{$taskDir}/TASK.md";
-file_put_contents($taskFile, trim($response) . "\n");
-
-echo "✅ Task created: .tasks/{$taskId}/TASK.md\n";
-echo "\nNext steps:\n";
-echo "  Review:  cat .tasks/{$taskId}/TASK.md\n";
-echo "  Approve: make approve TASK={$taskId}\n";
+echo ""
+echo "✅ Task created: .tasks/${TASK_ID}/TASK.md"
+echo ""
+echo "Next steps:"
+echo "  Review:  cat .tasks/${TASK_ID}/TASK.md"
+echo "  Approve: make da-approve TASK=${TASK_ID}"

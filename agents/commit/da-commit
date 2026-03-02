@@ -1,82 +1,72 @@
-#!/usr/bin/env php
-<?php
+#!/usr/bin/env bash
+set -euo pipefail
 
-declare(strict_types=1);
+TASK_ID="${1:-}"
+if [ -z "$TASK_ID" ]; then
+    echo "Usage: da-commit <task-id>"
+    echo "Example: da-commit task-001-dkim-validation"
+    exit 1
+fi
 
-(function () { $dir = __DIR__; while (!file_exists($dir . '/vendor/autoload.php')) { $parent = dirname($dir); if ($parent === $dir) { fwrite(STDERR, "autoload.php not found\n"); exit(1); } $dir = $parent; } require $dir . '/vendor/autoload.php'; })();
+TASK_FILE=".tasks/${TASK_ID}/TASK.md"
+if [ ! -f "$TASK_FILE" ]; then
+    echo "❌ Task not found: ${TASK_FILE}"
+    exit 1
+fi
 
-use DevAgents\TaskLoader;
+GOAL=$(awk '/^## Goal/{found=1; next} found && /^## /{exit} found && NF{print; exit}' "$TASK_FILE")
+SCOPE=$(awk '/^## Scope/{found=1; next} found && /^## /{exit} found && /^- /{sub(/^- `?/, ""); sub(/`?$/, ""); print}' "$TASK_FILE")
 
-// ── Arguments ─────────────────────────────────────────────────────────────────
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    echo "❌ Not a git repository"
+    exit 1
+fi
 
-$taskId = $argv[1] ?? '';
+DIFF=$(git diff --staged)
+if [ -z "$DIFF" ]; then
+    echo "❌ No staged changes. Use 'git add' first."
+    exit 1
+fi
 
-if ($taskId === '') {
-    echo "Usage: da-commit <task-id>\n";
-    echo "Example: da-commit task-001-dkim-validation\n";
-    exit(1);
-}
+CHANGED_FILES=$(git diff --staged --name-only)
 
-// ── Load task ─────────────────────────────────────────────────────────────────
+echo "📋 Staged files:"
+echo "$CHANGED_FILES"
+echo ""
 
-$task = TaskLoader::load($taskId);
+# Validate scope
+if [ -n "$SCOPE" ]; then
+    OUT_OF_SCOPE=""
+    while IFS= read -r FILE; do
+        IN_SCOPE=0
+        while IFS= read -r ALLOWED; do
+            [ -z "$ALLOWED" ] && continue
+            if [[ "$FILE" == "$ALLOWED"* ]]; then
+                IN_SCOPE=1
+                break
+            fi
+        done <<< "$SCOPE"
+        if [ $IN_SCOPE -eq 0 ]; then
+            OUT_OF_SCOPE="${OUT_OF_SCOPE}   ${FILE}\n"
+        fi
+    done <<< "$CHANGED_FILES"
 
-// ── Git checks ────────────────────────────────────────────────────────────────
+    if [ -n "$OUT_OF_SCOPE" ]; then
+        echo "⚠️  Files outside task scope:"
+        printf '%b' "$OUT_OF_SCOPE"
+        printf '\nProceed anyway? [y/N] '
+        read -r ANSWER
+        ANSWER=$(printf '%s' "$ANSWER" | tr '[:upper:]' '[:lower:]')
+        if [ "$ANSWER" != "y" ]; then
+            echo "❌ Aborted"
+            exit 1
+        fi
+    fi
+fi
 
-exec('git rev-parse --git-dir 2>/dev/null', $out, $code);
-if ($code !== 0) {
-    echo "❌ Not a git repository\n";
-    exit(1);
-}
+PROMPT="Generate git commit message(s) following Conventional Commits standard.
 
-$diffLines = [];
-exec('git diff --staged', $diffLines);
-$diff = implode("\n", $diffLines);
-if (trim($diff) === '') {
-    echo "❌ No staged changes. Use 'git add' first.\n";
-    exit(1);
-}
-
-$changedFilesLines = [];
-exec('git diff --staged --name-only', $changedFilesLines);
-$changedFiles = trim(implode("\n", $changedFilesLines));
-
-echo "📋 Staged files:\n$changedFiles\n\n";
-
-// ── Validate scope ────────────────────────────────────────────────────────────
-
-if (!empty($task['scope'])) {
-    $scopeFiles = $task['scope'];
-    $staged = explode("\n", $changedFiles);
-    $outOfScope = array_filter($staged, function (string $file) use ($scopeFiles): bool {
-        foreach ($scopeFiles as $allowed) {
-            if (str_starts_with($file, $allowed)) {
-                return false;
-            }
-        }
-        return true;
-    });
-
-    if (!empty($outOfScope)) {
-        echo "⚠️  Files outside task scope:\n";
-        foreach ($outOfScope as $file) {
-            echo "   $file\n";
-        }
-        echo "\nProceed anyway? [y/N] ";
-        $answer = strtolower(trim(fgets(STDIN)));
-        if ($answer !== 'y') {
-            echo "❌ Aborted\n";
-            exit(1);
-        }
-    }
-}
-
-// ── Build prompt ──────────────────────────────────────────────────────────────
-
-$prompt = <<<PROMPT
-Generate git commit message(s) following Conventional Commits standard.
-
-Task: {$task['goal']}
+Task: ${GOAL}
 
 Format: <type>(<scope>): <description>
 Types: feat, fix, chore, docs, refactor, test, style, perf, ci
@@ -85,78 +75,68 @@ Types: feat, fix, chore, docs, refactor, test, style, perf, ci
 
 Rules:
 - If diff contains multiple logical changes, output MULTIPLE lines
-- Each message prefixed with "COMMIT: "
+- Each message prefixed with \"COMMIT: \"
 - Output ONLY the COMMIT: lines, nothing else
 
 Changed files:
-$changedFiles
+${CHANGED_FILES}
 
 Diff:
-$diff
-PROMPT;
+${DIFF}"
 
-// ── Call AI CLI ───────────────────────────────────────────────────────────────
+read -ra AI_CMD <<< "${DA_AI_PRINT:-claude --print}"
+RESPONSE=$("${AI_CMD[@]}" "$PROMPT" 2>/dev/null)
 
-use DevAgents\Config;
-$config = new Config();
-$responseLines = [];
-exec($config->aiPrint($prompt) . ' 2>/dev/null', $responseLines);
-$response = implode("\n", $responseLines);
+if [ -z "$RESPONSE" ]; then
+    echo "❌ No response from AI CLI"
+    exit 1
+fi
 
-if (empty($response)) {
-    echo "❌ No response from claude CLI\n";
-    exit(1);
-}
+# Parse commits
+COMMITS=()
+while IFS= read -r LINE; do
+    if [[ "$LINE" == "COMMIT: "* ]]; then
+        COMMITS+=("${LINE#COMMIT: }")
+    fi
+done <<< "$RESPONSE"
 
-// ── Parse commits ─────────────────────────────────────────────────────────────
+if [ ${#COMMITS[@]} -eq 0 ]; then
+    echo "❌ No commit messages generated"
+    echo "$RESPONSE"
+    exit 1
+fi
 
-$commits = [];
-foreach (explode("\n", trim($response)) as $line) {
-    if (str_starts_with($line, 'COMMIT: ')) {
-        $commits[] = substr($line, 8);
-    }
-}
+# Validate format
+PATTERN='^(feat|fix|chore|docs|refactor|test|style|perf|ci)(\(.+\))?: .{3,}'
+for MSG in "${COMMITS[@]}"; do
+    if ! [[ "$MSG" =~ $PATTERN ]]; then
+        echo "❌ Invalid format: $MSG"
+        exit 1
+    fi
+done
 
-if (count($commits) === 0) {
-    echo "❌ No commit messages generated\n";
-    echo $response . "\n";
-    exit(1);
-}
+echo "💬 Generated ${#COMMITS[@]} commit(s):"
+for i in "${!COMMITS[@]}"; do
+    echo "  $((i+1)). ${COMMITS[$i]}"
+done
 
-// ── Validate format ───────────────────────────────────────────────────────────
+printf '\nProceed? [Y/n] '
+read -r ANSWER
+ANSWER=$(printf '%s' "$ANSWER" | tr '[:upper:]' '[:lower:]')
 
-$pattern = '/^(feat|fix|chore|docs|refactor|test|style|perf|ci)(\(.+\))?: .{3,}/';
+if [ "$ANSWER" = "n" ]; then
+    echo "❌ Aborted"
+    exit 1
+fi
 
-foreach ($commits as $msg) {
-    if (!preg_match($pattern, $msg)) {
-        echo "❌ Invalid format: $msg\n";
-        exit(1);
-    }
-}
+git commit -m "${COMMITS[0]}"
 
-// ── Confirm ───────────────────────────────────────────────────────────────────
+for i in "${!COMMITS[@]}"; do
+    [ $i -eq 0 ] && continue
+    echo ""
+    echo "📝 Next commit (stage relevant files, then run):"
+    printf '   git commit -m %q\n' "${COMMITS[$i]}"
+done
 
-$count = count($commits);
-echo "💬 Generated $count commit(s):\n";
-foreach ($commits as $i => $msg) {
-    echo "  " . ($i + 1) . ". $msg\n";
-}
-echo "\nProceed? [Y/n] ";
-$answer = strtolower(trim(fgets(STDIN)));
-
-if ($answer === 'n') {
-    echo "❌ Aborted\n";
-    exit(1);
-}
-
-// ── Commit ────────────────────────────────────────────────────────────────────
-
-$first = array_shift($commits);
-passthru('git commit -m ' . escapeshellarg($first));
-
-foreach ($commits as $msg) {
-    echo "\n📝 Next commit (stage relevant files, then run):\n";
-    echo "   git commit -m " . escapeshellarg($msg) . "\n";
-}
-
-echo "\n✅ Done\n";
+echo ""
+echo "✅ Done"

@@ -1,158 +1,135 @@
-#!/usr/bin/env php
-<?php
+#!/usr/bin/env bash
+set -euo pipefail
 
-declare(strict_types=1);
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    echo "❌ Not a git repository"
+    exit 1
+fi
 
-(function () { $dir = __DIR__; while (!file_exists($dir . '/vendor/autoload.php')) { $parent = dirname($dir); if ($parent === $dir) { fwrite(STDERR, "autoload.php not found\n"); exit(1); } $dir = $parent; } require $dir . '/vendor/autoload.php'; })();
+DIRTY=$(git status --porcelain)
+if [ -n "$DIRTY" ]; then
+    echo "❌ Working tree has uncommitted changes. Commit everything before releasing."
+    git status --short
+    exit 1
+fi
 
-use DevAgents\Config;
+# ── Determine current version ──────────────────────────────────────────────────
 
-$config = new Config();
+LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
+CURRENT_VERSION="${LATEST_TAG#v}"
+CURRENT_VERSION="${CURRENT_VERSION:-0.0.0}"
 
-// ── Git checks ────────────────────────────────────────────────────────────────
+echo "Current version: v${CURRENT_VERSION}"
 
-exec('git rev-parse --git-dir 2>/dev/null', $out, $code);
-if ($code !== 0) {
-    echo "❌ Not a git repository\n";
-    exit(1);
-}
+# ── Get commits since last tag ─────────────────────────────────────────────────
 
-exec('git status --porcelain', $dirtyLines);
-$dirty = trim(implode("\n", $dirtyLines));
-if ($dirty !== '') {
-    echo "❌ Working tree has uncommitted changes. Commit everything before releasing.\n";
-    $shortLines = [];
-    exec('git status --short', $shortLines);
-    echo implode("\n", $shortLines) . "\n";
-    exit(1);
-}
+LOG_RANGE="${LATEST_TAG:+${LATEST_TAG}..HEAD}"
+LOG=$(git log ${LOG_RANGE:-HEAD} --oneline 2>/dev/null || true)
 
-// ── Determine current version ─────────────────────────────────────────────────
+if [ -z "$LOG" ]; then
+    echo "❌ No commits since last release (v${CURRENT_VERSION})"
+    exit 1
+fi
 
-exec('git tag --sort=-v:refname', $allTags);
-$latestTag = '';
-foreach ($allTags as $t) {
-    if (preg_match('/^v\d+\.\d+\.\d+$/', trim($t))) {
-        $latestTag = trim($t);
-        break;
-    }
-}
-$currentVersion = $latestTag !== '' ? ltrim($latestTag, 'v') : '0.0.0';
+echo ""
+echo "Commits since v${CURRENT_VERSION}:"
+while IFS= read -r LINE; do
+    echo "  $LINE"
+done <<< "$LOG"
 
-echo "Current version: v{$currentVersion}\n";
+# ── Determine bump type via AI ─────────────────────────────────────────────────
 
-// ── Get commits since last tag ────────────────────────────────────────────────
+echo ""
+echo "🤖 Analyzing commits for version bump..."
 
-$logRange = $latestTag !== '' ? "{$latestTag}..HEAD" : 'HEAD';
-$logLines = [];
-exec("git log " . escapeshellarg($logRange) . " --oneline 2>/dev/null", $logLines);
-$log = trim(implode("\n", $logLines));
-
-if ($log === '') {
-    echo "❌ No commits since last release (v{$currentVersion})\n";
-    exit(1);
-}
-
-echo "\nCommits since v{$currentVersion}:\n";
-foreach (explode("\n", $log) as $line) {
-    echo "  $line\n";
-}
-
-// ── Determine bump type via AI ────────────────────────────────────────────────
-
-echo "\n🤖 Analyzing commits for version bump...\n";
-
-$prompt = <<<PROMPT
-Analyze these git commits and determine the appropriate semantic version bump (major/minor/patch) following semver.org rules:
+PROMPT="Analyze these git commits and determine the appropriate semantic version bump (major/minor/patch) following semver.org rules:
 - major: breaking changes (BREAKING CHANGE in footer, or ! after type)
 - minor: new features (feat:)
 - patch: bug fixes, chores, docs (fix:, chore:, docs:, etc.)
 
 Commits:
-{$log}
+${LOG}
 
 Respond with EXACTLY one line in this format:
 BUMP: <major|minor|patch>
 REASON: <one sentence explanation>
 CHANGELOG:
-- <bullet point per logical change, max 10>
-PROMPT;
+- <bullet point per logical change, max 10>"
 
-$responseLines = [];
-exec($config->aiPrint($prompt) . ' 2>/dev/null', $responseLines);
-$response = implode("\n", $responseLines);
+read -ra AI_CMD <<< "${DA_AI_PRINT:-claude --print}"
+RESPONSE=$("${AI_CMD[@]}" "$PROMPT" 2>/dev/null)
 
-if (empty(trim($response))) {
-    echo "❌ No response from claude CLI\n";
-    exit(1);
-}
+if [ -z "$RESPONSE" ]; then
+    echo "❌ No response from AI CLI"
+    exit 1
+fi
 
-// ── Parse AI response ─────────────────────────────────────────────────────────
+# ── Parse AI response ──────────────────────────────────────────────────────────
 
-$bump = 'patch';
-$reason = '';
-$changelog = [];
+BUMP="patch"
+REASON=""
+CHANGELOG=()
 
-foreach (explode("\n", $response) as $line) {
-    if (str_starts_with($line, 'BUMP: ')) {
-        $bump = strtolower(trim(substr($line, 6)));
-        if (!in_array($bump, ['major', 'minor', 'patch'])) {
-            $bump = 'patch';
-        }
-    } elseif (str_starts_with($line, 'REASON: ')) {
-        $reason = trim(substr($line, 8));
-    } elseif (str_starts_with($line, '- ')) {
-        $changelog[] = trim($line);
-    }
-}
+while IFS= read -r LINE; do
+    if [[ "$LINE" == "BUMP: "* ]]; then
+        B="${LINE#BUMP: }"
+        B=$(printf '%s' "$B" | tr '[:upper:]' '[:lower:]')
+        [[ "$B" =~ ^(major|minor|patch)$ ]] && BUMP="$B"
+    elif [[ "$LINE" == "REASON: "* ]]; then
+        REASON="${LINE#REASON: }"
+    elif [[ "$LINE" == "- "* ]]; then
+        CHANGELOG+=("$LINE")
+    fi
+done <<< "$RESPONSE"
 
-// ── Calculate next version ────────────────────────────────────────────────────
+# ── Calculate next version ─────────────────────────────────────────────────────
 
-[$major, $minor, $patch] = array_map('intval', explode('.', $currentVersion));
+IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+case "$BUMP" in
+    major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+    minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+    *)     PATCH=$((PATCH + 1)) ;;
+esac
+NEXT_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
 
-match ($bump) {
-    'major' => [$major++, $minor = 0, $patch = 0],
-    'minor' => [$minor++, $patch = 0],
-    default => $patch++,
-};
+# ── Confirm ────────────────────────────────────────────────────────────────────
 
-$nextVersion = "v{$major}.{$minor}.{$patch}";
+echo ""
+echo "────────────────────────────────────────────────────────────"
+echo "Bump type:    ${BUMP}"
+echo "Reason:       ${REASON}"
+echo "New version:  ${NEXT_VERSION}"
 
-// ── Confirm ───────────────────────────────────────────────────────────────────
+if [ ${#CHANGELOG[@]} -gt 0 ]; then
+    echo ""
+    echo "Changelog:"
+    for ENTRY in "${CHANGELOG[@]}"; do
+        echo "  $ENTRY"
+    done
+fi
 
-echo "\n────────────────────────────────────────────────────────────\n";
-echo "Bump type:    {$bump}\n";
-echo "Reason:       {$reason}\n";
-echo "New version:  {$nextVersion}\n";
+echo ""
+echo "────────────────────────────────────────────────────────────"
+printf 'Create release %s? [Y/n] ' "$NEXT_VERSION"
+read -r ANSWER
+ANSWER=$(printf '%s' "$ANSWER" | tr '[:upper:]' '[:lower:]')
 
-if (!empty($changelog)) {
-    echo "\nChangelog:\n";
-    foreach ($changelog as $entry) {
-        echo "  $entry\n";
-    }
-}
+if [ "$ANSWER" = "n" ]; then
+    echo "❌ Release cancelled"
+    exit 1
+fi
 
-echo "\n────────────────────────────────────────────────────────────\n";
-echo "Create release {$nextVersion}? [Y/n] ";
-$answer = strtolower(trim(fgets(STDIN)));
+# ── Tag release ────────────────────────────────────────────────────────────────
 
-if ($answer === 'n') {
-    echo "❌ Release cancelled\n";
-    exit(1);
-}
+CHANGELOG_TEXT=$(printf '%s\n' "${CHANGELOG[@]}" 2>/dev/null || true)
+TAG_MESSAGE="Release ${NEXT_VERSION}
 
-// ── Tag release ───────────────────────────────────────────────────────────────
+${CHANGELOG_TEXT}"
 
-$changelogText = implode("\n", $changelog);
-$tagMessage = "Release {$nextVersion}\n\n{$changelogText}";
+git tag -a "$NEXT_VERSION" -m "$TAG_MESSAGE"
 
-passthru('git tag -a ' . escapeshellarg($nextVersion) . ' -m ' . escapeshellarg($tagMessage), $exitCode);
-
-if ($exitCode !== 0) {
-    echo "❌ Failed to create tag\n";
-    exit(1);
-}
-
-echo "\n✅ Tagged release {$nextVersion}\n";
-echo "\nTo push the release:\n";
-echo "  git push origin {$nextVersion}\n";
+echo ""
+echo "✅ Tagged release ${NEXT_VERSION}"
+echo ""
+echo "To push the release:"
+echo "  git push origin ${NEXT_VERSION}"
