@@ -17,7 +17,7 @@ fi
 STATUS=$(grep -m1 '^status:' "$TASK_FILE" | sed 's/^status:[[:space:]]*//' || echo "draft")
 if [ "$STATUS" != "approved" ]; then
     echo "❌ Task is not approved (status: ${STATUS})"
-    echo "   Run: make da-approve TASK=${TASK_ID}"
+    echo "   Run: make da-spec-approve TASK=${TASK_ID}"
     exit 1
 fi
 
@@ -85,6 +85,25 @@ if [ $EXIT_CODE -ne 0 ]; then
     echo ""
     echo "❌ AI agent exited with code $EXIT_CODE"
     exit $EXIT_CODE
+fi
+
+# ── Lint before PR ────────────────────────────────────────────────────────────
+
+LINT_BIN="vendor/bin/da-lint"
+if [ -f "$LINT_BIN" ]; then
+    echo ""
+    echo "▶ Running lint..."
+    LINT_FAILED=0
+    "$LINT_BIN" --save-prompt .dev-agents-lint || LINT_FAILED=$?
+
+    if [ $LINT_FAILED -ne 0 ] && [ -s ".dev-agents-lint" ]; then
+        echo "▶ AI fixing lint issues..."
+        read -ra AI_AUTO_CMD <<< "${DA_AI_AUTO:-claude --dangerously-skip-permissions}"
+        "${AI_AUTO_CMD[@]}" "$(cat .dev-agents-lint)"
+        rm -f .dev-agents-lint
+        echo "▶ Re-checking lint..."
+        "$LINT_BIN" || echo "⚠️  Some lint issues remain — review the PR."
+    fi
 fi
 
 # ── Push branch and create PR ──────────────────────────────────────────────────

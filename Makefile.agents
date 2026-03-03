@@ -13,10 +13,10 @@ da-spec: ## Create task specification. Usage: make da-spec TASK="add DKIM valida
 	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-spec TASK="add DKIM validation"' && exit 1)
 	$(AGENTS_BIN)/da-spec "$(TASK)"
 
-.PHONY: da-approve
-da-approve: ## Approve task specification. Usage: make da-approve TASK=task-001-dkim-validation
-	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-approve TASK=task-001-dkim-validation' && exit 1)
-	$(AGENTS_BIN)/da-approve "$(TASK)"
+.PHONY: da-spec-approve
+da-spec-approve: ## Approve task specification. Usage: make da-spec-approve TASK=task-001-dkim-validation
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-spec-approve TASK=task-001-dkim-validation' && exit 1)
+	$(AGENTS_BIN)/da-spec-approve "$(TASK)"
 
 .PHONY: da-code
 da-code: ## Start implementation of approved task. Usage: make da-code TASK=task-001-dkim-validation

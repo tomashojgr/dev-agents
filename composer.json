@@ -10,7 +10,7 @@
 
     "bin": [
         "agents/spec/da-spec",
-        "agents/approve/da-approve",
+        "agents/spec-approve/da-spec-approve",
         "agents/code/da-code",
         "agents/commit/da-commit",
         "agents/lint/da-lint",

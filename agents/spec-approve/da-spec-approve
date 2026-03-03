@@ -3,8 +3,8 @@ set -euo pipefail
 
 TASK_ID="${1:-}"
 if [ -z "$TASK_ID" ]; then
-    echo "Usage: da-approve <task-id>"
-    echo "Example: da-approve task-001-dkim-validation"
+    echo "Usage: da-spec-approve <task-id>"
+    echo "Example: da-spec-approve task-001-dkim-validation"
     exit 1
 fi
 

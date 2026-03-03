@@ -1,20 +1,21 @@
 # dev-agents
 
-PHP 8.4 composer package providing development workflow automation via specialized CLI agents that call the `claude` CLI (not the API).
+PHP 8.4 composer package providing development workflow automation via AI-powered CLI agents. Agents are bash scripts — no PHP required on the host machine.
 
 ## Project Structure
 
 ```
 agents/
-  commit/da-commit    # Generate conventional commit messages from staged diff
-  spec/da-spec        # Generate TASK.md specifications from a goal string
-  approve/da-approve  # Approve a task spec (sets status: approved)
-  code/da-code        # Launch Claude Code to implement an approved task
-  lint/da-lint        # Run available PHP linters + AI error summary
-  release/da-release  # Bump semver, tag release with AI-generated changelog
+  commit/da-commit              # Generate conventional commit messages from staged diff
+  spec/da-spec                  # Interactive AI discussion → generate TASK.md spec
+  spec-approve/da-spec-approve  # Approve a task spec (sets status: approved)
+  code/da-code                  # Create branch, implement autonomously, lint, push, open PR
+  lint/da-lint                  # Run available PHP linters + AI error summary
+  review/da-review              # Read PR comments and address them autonomously
+  release/da-release            # Bump semver, tag + push release with AI-generated changelog
 src/
-  TaskLoader.php      # Parse .tasks/<id>/TASK.md into structured array
-  Installer.php       # composer post-install: inject include into project Makefile
+  Installer.php       # composer post-install/update: inject/update include in project Makefile
+  Plugin.php          # Composer plugin entry point
 templates/
   TASK.md             # Template for task specifications
 Makefile.agents       # Make targets included into consumer project Makefile
@@ -23,11 +24,21 @@ composer.json
 
 ## Architecture Principles
 
-- **Agents are PHP CLI scripts** (`#!/usr/bin/env php`) that shell out to `claude --print "..."` for non-interactive AI calls
-- **`da-code` is the exception**: it runs `claude "<prompt>"` interactively (Claude Code, not `--print`)
-- **No Anthropic API keys**: all AI calls go through the `claude` CLI tool
+- **Agents are bash scripts** — no PHP required on the host machine
+- **PHP is only used in `src/`** (Installer, Plugin) which run during `composer install/update` where PHP is always available
+- **No Anthropic API keys**: all AI calls go through the `claude` CLI (or another configured AI CLI)
 - **Tasks live in `.tasks/<task-id>/TASK.md`** in the consumer project, not here
-- **Agents are composable**: spec → approve → code → commit → lint → release
+- **Agents are composable**: spec → spec-approve → code (auto-lint + PR) → review loop → release
+
+## AI CLI Variables
+
+Three Makefile variables control which AI command is used:
+
+| Variable | Default | Used by |
+|----------|---------|---------|
+| `DA_AI_PRINT` | `claude --print` | Non-interactive AI calls (commit, release) |
+| `DA_AI_RUN` | `claude` | Interactive AI session (spec) |
+| `DA_AI_AUTO` | `claude --dangerously-skip-permissions` | Autonomous AI without permission prompts (code, review, lint-fix) |
 
 ## Task Lifecycle
 
@@ -40,7 +51,7 @@ Status is stored as a YAML frontmatter field in TASK.md:
 status: draft | approved | done
 ```
 
-`da-code` only runs on `approved` tasks. It marks tasks as `done` when Claude Code exits.
+`da-code` only runs on `approved` tasks. It marks tasks as `done` after pushing the PR.
 
 ## TASK.md Format
 
@@ -71,28 +82,25 @@ Hints for the implementer.
 What not to touch.
 ```
 
-`TaskLoader::parse()` extracts: `status`, `goal`, `scope` (list items under ## Scope), `raw`.
+## Coding Standards (bash agents)
 
-## Coding Standards
-
-- PHP 8.4, strict types on every file
-- No external runtime dependencies (only `composer/composer` in require-dev for Installer)
-- Agents use `passthru()` for interactive commands (preserving TTY), `shell_exec()` for captured output
-- `escapeshellarg()` on all user-provided strings passed to shell
+- `set -euo pipefail` at the top of every agent
+- `read -ra CMD <<< "${DA_AI_VAR:-default}"` for safe command splitting
 - Error messages prefix: `❌`, success: `✅`, info: `ℹ️`, progress: `▶`
 - Exit codes: 0 = success, 1 = user error or tool failure
 
 ## Adding a New Agent
 
-1. Create `agents/<name>/da-<name>` (executable PHP script)
-2. Add to `"bin"` array in `composer.json`
-3. Add make target in `Makefile.agents`
-4. Document here
+1. Create `agents/<name>/da-<name>` (executable bash script)
+2. Make it executable: `chmod +x agents/<name>/da-<name>`
+3. Add to `"bin"` array in `composer.json`
+4. Add make target in `Makefile.agents`
+5. Document here and in README.md
 
 ## Testing Locally
 
 ```bash
 composer install
-# Symlink or PATH the agent you're working on
-php agents/spec/da-spec "test task description"
+# Run an agent directly (they're in vendor/bin after install)
+vendor/bin/da-spec "test task description"
 ```

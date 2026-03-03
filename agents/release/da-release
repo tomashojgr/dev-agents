@@ -129,7 +129,9 @@ ${CHANGELOG_TEXT}"
 git tag -a "$NEXT_VERSION" -m "$TAG_MESSAGE"
 
 echo ""
-echo "✅ Tagged release ${NEXT_VERSION}"
+echo "▶ Pushing..."
+git push origin HEAD
+git push origin "$NEXT_VERSION"
+
 echo ""
-echo "To push the release:"
-echo "  git push origin ${NEXT_VERSION}"
+echo "✅ Released ${NEXT_VERSION}"
