@@ -6,13 +6,14 @@ PHP 8.4 composer package providing development workflow automation via AI-powere
 
 ```
 agents/
-  commit/da-commit              # Generate conventional commit messages from staged diff
-  spec/da-spec                  # Interactive AI discussion → generate TASK.md spec
-  spec-approve/da-spec-approve  # Approve a task spec (sets status: approved)
-  code/da-code                  # Create branch, implement autonomously, lint, push, open PR
-  lint/da-lint                  # Run available PHP linters + AI error summary
-  review/da-review              # Read PR comments and address them autonomously
-  release/da-release            # Bump semver, tag + push release with AI-generated changelog
+  commit/da-commit                  # Generate conventional commit messages from staged diff
+  spec/da-spec                      # Interactive AI discussion → generate TASK.md spec
+  spec-approve/da-spec-approve      # Approve a task spec (sets waiting-for-coding)
+  spec-continue/da-spec-continue    # Reopen spec discussion from existing TASK.md
+  code/da-code                      # Create branch, implement autonomously, lint, push, open PR
+  lint/da-lint                      # Run available PHP linters + AI error summary
+  review/da-review                  # Read PR comments and address them autonomously
+  release/da-release                # Bump semver, tag + push release with AI-generated changelog
 src/
   Installer.php       # composer post-install/update: inject/update include in project Makefile
   Plugin.php          # Composer plugin entry point

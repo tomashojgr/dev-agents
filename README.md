@@ -72,6 +72,7 @@ These agents are useful outside the main workflow — for manual development, ad
 
 | Command | Description |
 |---------|-------------|
+| `make da-spec-continue TASK=...` | Reopen spec discussion for an existing task (context from spec, not original conversation) |
 | `make da-spec-approve TASK=...` | Approve a manually written task spec (sets status to `waiting-for-coding`) |
 | `make da-lint-fix` | Run linters, auto-fix style issues via phpcbf, then AI fixes remaining issues |
 | `make da-lint` | Run available PHP linters (check only, no fixes) |

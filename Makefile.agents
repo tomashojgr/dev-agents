@@ -14,18 +14,23 @@ da-spec: ## Create task specification. Usage: make da-spec TASK="add DKIM valida
 	$(AGENTS_BIN)/da-spec "$(TASK)"
 
 .PHONY: da-spec-approve
-da-spec-approve: ## Approve task specification. Usage: make da-spec-approve TASK=task-001-dkim-validation
-	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-spec-approve TASK=task-001-dkim-validation' && exit 1)
+da-spec-approve: ## Approve task specification. Usage: make da-spec-approve TASK=1
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-spec-approve TASK=1' && exit 1)
 	$(AGENTS_BIN)/da-spec-approve "$(TASK)"
 
+.PHONY: da-spec-continue
+da-spec-continue: ## Continue refining a task spec. Usage: make da-spec-continue TASK=1
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-spec-continue TASK=1' && exit 1)
+	$(AGENTS_BIN)/da-spec-continue "$(TASK)"
+
 .PHONY: da-code
-da-code: ## Start implementation of approved task. Usage: make da-code TASK=task-001-dkim-validation
-	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-code TASK=task-001-dkim-validation' && exit 1)
+da-code: ## Implement an approved task autonomously. Usage: make da-code TASK=1
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-code TASK=1' && exit 1)
 	$(AGENTS_BIN)/da-code "$(TASK)"
 
 .PHONY: da-commit
-da-commit: ## Run commit agent. Usage: make da-commit TASK=task-001-dkim-validation
-	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-commit TASK=task-001-dkim-validation' && exit 1)
+da-commit: ## Generate a commit message from staged diff. Usage: make da-commit TASK=1
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-commit TASK=1' && exit 1)
 	$(AGENTS_BIN)/da-commit "$(TASK)"
 
 .PHONY: da-lint
@@ -37,8 +42,8 @@ da-lint-fix: ## Run linters and launch AI agent to fix issues interactively.
 	$(AGENTS_BIN)/da-lint --save-prompt .dev-agents-lint || $(DA_AI_RUN) "$$(cat .dev-agents-lint)"
 
 .PHONY: da-review
-da-review: ## Address PR review comments autonomously. Usage: make da-review TASK=task-001-dkim-validation
-	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-review TASK=task-001-dkim-validation' && exit 1)
+da-review: ## Address PR review comments autonomously. Usage: make da-review TASK=1
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-review TASK=1' && exit 1)
 	$(AGENTS_BIN)/da-review "$(TASK)"
 
 .PHONY: da-release

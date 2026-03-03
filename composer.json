@@ -11,6 +11,7 @@
     "bin": [
         "agents/spec/da-spec",
         "agents/spec-approve/da-spec-approve",
+        "agents/spec-continue/da-spec-continue",
         "agents/code/da-code",
         "agents/commit/da-commit",
         "agents/lint/da-lint",

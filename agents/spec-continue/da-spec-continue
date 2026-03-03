@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ── Resolve task reference to full task ID ────────────────────────────────────
+
+resolve_task() {
+    local arg="$1" tasks_dir=".tasks" match matches count padded
+    [ -d "${tasks_dir}/${arg}" ] && { echo "$arg"; return 0; }
+    if [[ "$arg" =~ ^[0-9]+$ ]]; then
+        padded=$(printf '%03d' "$arg")
+        match=$(find "$tasks_dir" -maxdepth 1 -type d -name "task-${padded}-*" 2>/dev/null | head -1)
+        [ -n "$match" ] && { basename "$match"; return 0; }
+    fi
+    matches=$(find "$tasks_dir" -maxdepth 1 -type d -name "*${arg}*" 2>/dev/null | sort)
+    count=$(echo "$matches" | grep -c . 2>/dev/null || true)
+    if [ "$count" -eq 1 ]; then basename "$matches"; return 0
+    elif [ "$count" -gt 1 ]; then
+        echo "❌ Multiple tasks match '${arg}':" >&2
+        echo "$matches" | while IFS= read -r m; do echo "  $(basename "$m")"; done >&2
+        return 1
+    fi
+    echo "❌ No task found matching '${arg}'" >&2; return 1
+}
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+TASK_ARG="${1:-}"
+if [ -z "$TASK_ARG" ]; then
+    echo "Usage: da-spec-continue <task>"
+    echo "Example: da-spec-continue 1"
+    echo "         da-spec-continue dkim"
+    echo "         da-spec-continue task-001-add-dkim-validation"
+    exit 1
+fi
+
+TASK_ID=$(resolve_task "$TASK_ARG") || exit 1
+
+TASK_DIR=".tasks/${TASK_ID}"
+TASK_FILE="${TASK_DIR}/TASK.md"
+TASK_JSON="${TASK_DIR}/task.json"
+DA_PKG="vendor/tomashojgr/dev-agents"
+
+if [ ! -f "$TASK_FILE" ]; then
+    echo "❌ Task not found: ${TASK_FILE}"
+    exit 1
+fi
+
+STATUS=$(grep '"status"' "$TASK_JSON" | sed 's/.*"status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+
+if [ "$STATUS" = "waiting-for-coding" ] || [ "$STATUS" = "coding-in-progress" ] || \
+   [ "$STATUS" = "waiting-for-pr-review" ] || [ "$STATUS" = "review-in-progress" ] || \
+   [ "$STATUS" = "task-completed" ]; then
+    echo "❌ Task is already past the spec stage (status: ${STATUS})"
+    echo "   da-spec-continue is only for tasks in spec-in-progress or waiting-for-spec-approval"
+    exit 1
+fi
+
+CURRENT_SPEC=$(cat "$TASK_FILE")
+TEMPLATE=$(cat "$DA_PKG/templates/TASK.md")
+
+# ── Detect project context ─────────────────────────────────────────────────────
+
+PROJECT_CONTEXT=""
+if [ -f "composer.json" ]; then
+    NAME=$(sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' composer.json | head -1)
+    DESC=$(sed -n 's/.*"description"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' composer.json | head -1)
+    PROJECT_CONTEXT="Project: ${NAME}
+Description: ${DESC}
+"
+fi
+
+if [ -f "CLAUDE.md" ]; then
+    PROJECT_CONTEXT="${PROJECT_CONTEXT}
+Project instructions from CLAUDE.md:
+$(cat CLAUDE.md)
+"
+fi
+
+# ── Update status ──────────────────────────────────────────────────────────────
+
+TMP=$(mktemp)
+sed 's/"status"[[:space:]]*:[[:space:]]*"[^"]*"/"status": "spec-in-progress"/' "$TASK_JSON" > "$TMP"
+mv "$TMP" "$TASK_JSON"
+
+# ── Build prompt ───────────────────────────────────────────────────────────────
+
+PROMPT="You are a software architect helping a developer refine an existing task specification.
+
+${PROJECT_CONTEXT}
+Task ID: ${TASK_ID}
+
+The developer is returning to an earlier discussion to continue refining the spec. Note: the original conversation context is not available — only the spec as written so far is provided below.
+
+Current spec:
+${CURRENT_SPEC}
+
+Resume the conversation naturally. Review the existing spec with the developer, ask if anything needs clarifying or changing, and drive towards a final version they are happy with.
+
+When the developer says something like 'ok, zapiš to', 'ok, update it', 'done', or 'generate':
+1. Rewrite ${TASK_FILE} with the updated specification (pure markdown, no frontmatter), using this template as a guide:
+
+${TEMPLATE}
+
+2. Update the \"status\" field in ${TASK_JSON} to \"waiting-for-spec-approval\".
+
+3. Display the full contents of ${TASK_FILE} in the conversation so the developer can review it.
+
+4. Ask: 'Does this look right? Would you like to change anything, or shall I start implementation?'
+
+If the developer wants further changes — continue discussing, rewrite ${TASK_FILE}, and ask again.
+
+When the developer confirms they are happy and want implementation:
+- Update the \"status\" field in ${TASK_JSON} to \"waiting-for-coding\"
+- Let the developer know that implementation will start shortly after the session ends
+
+If the developer does not want to implement now — end the session normally (leave status as \"waiting-for-spec-approval\")."
+
+# ── Launch interactive AI session ─────────────────────────────────────────────
+
+echo "ℹ️  Continuing spec for: ${TASK_ID}"
+echo "   Note: previous conversation context is not available — working from current spec."
+echo ""
+
+read -ra AI_RUN <<< "${DA_AI_RUN:-claude}"
+"${AI_RUN[@]}" "$PROMPT"
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -ne 0 ]; then
+    echo ""
+    echo "❌ AI agent exited with code $EXIT_CODE"
+    exit $EXIT_CODE
+fi
+
+# ── Check status and optionally start implementation ──────────────────────────
+
+STATUS=$(grep '"status"' "$TASK_JSON" | sed 's/.*"status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+
+if [ "$STATUS" = "waiting-for-coding" ]; then
+    echo ""
+    echo "▶ Starting implementation of ${TASK_ID}..."
+
+    DA_CODE_BIN="$(dirname "$0")/../code/da-code"
+    if [ ! -f "$DA_CODE_BIN" ]; then
+        DA_CODE_BIN="vendor/bin/da-code"
+    fi
+    exec "$DA_CODE_BIN" "$TASK_ID"
+else
+    echo ""
+    echo "✅ Spec updated: .tasks/${TASK_ID}/TASK.md"
+    echo "ℹ️  When ready to implement:"
+    echo "   make da-spec-approve TASK=${TASK_ID}"
+fi
