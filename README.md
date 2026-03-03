@@ -61,24 +61,24 @@ make da-release
 
 | Command | Description |
 |---------|-------------|
-| `make da-spec TASK="..."` | Interactive discussion with AI, generates and displays `TASK.md` in-conversation, then offers to start implementation (context preserved throughout) |
-| `make da-code TASK=...` | Creates a task branch, implements autonomously, runs lint, pushes and opens a PR |
+| `make da-spec TASK="..."` | Discuss requirements with AI, generate spec, then implement — all in one session with full context |
 | `make da-review TASK=...` | Reads PR comments and addresses them autonomously, then pushes |
 | `make da-release` | Bumps semver, tags release with AI-generated changelog, pushes |
 
 ## Manual tools
 
-These agents are useful outside the main workflow — for manual development, ad-hoc fixes, or CI integration:
+These commands are useful when working outside the standard `da-spec` flow:
 
 | Command | Description |
 |---------|-------------|
-| `make da-spec-continue TASK=...` | Reopen spec discussion for an existing task (context from spec, not original conversation) |
+| `make da-code TASK=...` | Implement a task from its `TASK.md` spec autonomously (use when spec was written manually or `da-spec` was interrupted before coding) |
+| `make da-spec-continue TASK=...` | Reopen spec discussion for an existing task (note: original conversation context is not available, works from `TASK.md`) |
 | `make da-spec-approve TASK=...` | Approve a manually written task spec (sets status to `waiting-for-coding`) |
 | `make da-lint-fix` | Run linters, auto-fix style issues via phpcbf, then AI fixes remaining issues |
 | `make da-lint` | Run available PHP linters (check only, no fixes) |
-| `make da-commit TASK=...` | Generate a Conventional Commits message from staged diff — useful when committing manual changes |
+| `make da-commit TASK=...` | Generate a Conventional Commits message from staged diff |
 
-> **Note:** `da-code` runs lint automatically before opening the PR, so `da-lint` / `da-lint-fix` are typically only needed for manual code changes.
+> **Note:** `da-spec` and `da-code` both run lint automatically before opening the PR, so `da-lint` / `da-lint-fix` are typically only needed for manual code changes.
 
 ## Configuration
 
@@ -96,9 +96,9 @@ DA_AI_AUTO  = codex exec
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DA_AI_PRINT` | `claude --print` | Non-interactive AI call — returns output to stdout |
-| `DA_AI_RUN` | `claude` | Interactive AI session — used by `da-spec` |
-| `DA_AI_AUTO` | `claude --dangerously-skip-permissions` | Autonomous AI session without permission prompts — used by `da-code` and `da-review` |
+| `DA_AI_PRINT` | `claude --print` | Non-interactive AI call — returns output to stdout (used by `da-commit`, `da-release`) |
+| `DA_AI_RUN` | `claude` | Interactive AI session without auto-permissions (used by `da-lint-fix`) |
+| `DA_AI_AUTO` | `claude --dangerously-skip-permissions` | Autonomous AI session — used by `da-spec`, `da-spec-continue`, `da-code`, `da-review` |
 
 Lint config files (`phpstan.neon`, `.phpcs.xml`) are created in your project root on install if the respective tools are present in `vendor/bin`. Edit them to customise lint rules.
 

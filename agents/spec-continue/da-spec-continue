@@ -109,20 +109,55 @@ ${TEMPLATE}
 
 If the developer wants further changes — continue discussing, rewrite ${TASK_FILE}, and ask again.
 
-When the developer confirms they are happy and want implementation:
-- Update the \"status\" field in ${TASK_JSON} to \"waiting-for-coding\"
-- Let the developer know that implementation will start shortly after the session ends
+When the developer confirms they want implementation, proceed immediately without leaving the session:
 
-If the developer does not want to implement now — end the session normally (leave status as \"waiting-for-spec-approval\")."
+1. Update \"status\" in ${TASK_JSON} to \"waiting-for-coding\".
 
-# ── Launch interactive AI session ─────────────────────────────────────────────
+2. Verify the working tree is clean:
+   - Run: git status --porcelain
+   - If there are uncommitted changes, tell the developer and stop.
+
+3. Create and switch to the task branch:
+   - If branch '${TASK_ID}' exists: git checkout ${TASK_ID}
+   - Otherwise: git checkout -b ${TASK_ID}
+
+4. Update \"status\" in ${TASK_JSON} to \"coding-in-progress\".
+
+5. Implement the task based on the spec in ${TASK_FILE}. Work autonomously — make your best judgment without asking for confirmation.
+
+6. Before committing — validate against the spec:
+   - Re-read the Acceptance Criteria section of ${TASK_FILE}
+   - Verify every criterion is met by the implementation
+   - Fix any gaps before proceeding
+
+7. Run tests if a test suite exists. Fix any failures before continuing.
+
+8. Run lint if available:
+   - If vendor/bin/da-lint exists: run it with --save-prompt .dev-agents-lint
+   - If lint fails, fix all reported issues and re-run to confirm clean
+
+9. Stage all changed files and commit with a conventional commit message (feat:, fix:, etc.).
+
+10. Push the branch:
+    git push -u origin ${TASK_ID}
+
+11. Create a pull request:
+    gh pr create --title \"\$(grep -m1 '## Goal' ${TASK_FILE} -A1 | tail -1)\" --body \"\$(cat ${TASK_FILE})\" --head ${TASK_ID}
+
+12. Update \"status\" in ${TASK_JSON} to \"waiting-for-pr-review\". Commit and push this change.
+
+13. Tell the developer the PR is open and ready for review.
+
+If the developer does not want to implement now — leave status as \"waiting-for-spec-approval\" and end the session normally."
+
+# ── Launch AI session ──────────────────────────────────────────────────────────
 
 echo "ℹ️  Continuing spec for: ${TASK_ID}"
 echo "   Note: previous conversation context is not available — working from current spec."
 echo ""
 
-read -ra AI_RUN <<< "${DA_AI_RUN:-claude}"
-"${AI_RUN[@]}" "$PROMPT"
+read -ra AI_AUTO <<< "${DA_AI_AUTO:-claude --dangerously-skip-permissions}"
+"${AI_AUTO[@]}" "$PROMPT"
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
@@ -131,22 +166,27 @@ if [ $EXIT_CODE -ne 0 ]; then
     exit $EXIT_CODE
 fi
 
-# ── Check status and optionally start implementation ──────────────────────────
+# ── Post-session status check ──────────────────────────────────────────────────
 
 STATUS=$(grep '"status"' "$TASK_JSON" | sed 's/.*"status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
 
-if [ "$STATUS" = "waiting-for-coding" ]; then
-    echo ""
-    echo "▶ Starting implementation of ${TASK_ID}..."
-
-    DA_CODE_BIN="$(dirname "$0")/../code/da-code"
-    if [ ! -f "$DA_CODE_BIN" ]; then
-        DA_CODE_BIN="vendor/bin/da-code"
-    fi
-    exec "$DA_CODE_BIN" "$TASK_ID"
-else
-    echo ""
-    echo "✅ Spec updated: .tasks/${TASK_ID}/TASK.md"
-    echo "ℹ️  When ready to implement:"
-    echo "   make da-spec-approve TASK=${TASK_ID}"
-fi
+case "$STATUS" in
+    waiting-for-pr-review)
+        echo ""
+        echo "✅ Implementation complete. PR is open and ready for review."
+        echo "   make da-review TASK=${TASK_ID}"
+        ;;
+    waiting-for-coding|coding-in-progress)
+        echo ""
+        echo "▶ Resuming implementation of ${TASK_ID}..."
+        DA_CODE_BIN="$(dirname "$0")/../code/da-code"
+        [ ! -f "$DA_CODE_BIN" ] && DA_CODE_BIN="vendor/bin/da-code"
+        exec "$DA_CODE_BIN" "$TASK_ID"
+        ;;
+    *)
+        echo ""
+        echo "✅ Spec updated: .tasks/${TASK_ID}/TASK.md"
+        echo "ℹ️  When ready to implement:"
+        echo "   make da-spec-approve TASK=${TASK_ID}"
+        ;;
+esac

@@ -61,42 +61,81 @@ fi
 
 # ── Build prompt ───────────────────────────────────────────────────────────────
 
-PROMPT="You are a software architect helping a developer turn an idea into a precise task specification.
+PROMPT="You are a software architect and senior developer helping a developer go from idea to implemented feature.
 
 ${PROJECT_CONTEXT}
 Task goal: ${GOAL}
 Task ID:   ${TASK_ID}
 Date:      ${DATE}
 
-Have a natural conversation with the developer to fully understand the requirements. You can raise multiple concerns at once, ask about scope, edge cases, constraints, expected behaviour, or suggest approaches. Drive the discussion until the requirements are clear.
+── PHASE 1: SPECIFICATION ───────────────────────────────────────────────────────
+
+Have a natural conversation with the developer to fully understand the requirements. Raise concerns, ask about scope, edge cases, constraints, expected behaviour, and suggest approaches. Drive the discussion until the requirements are clear.
 
 When the developer says something like 'ok, zapiš to', 'ok, write it', 'done', or 'generate':
-1. Write the completed specification to ${TASK_FILE} using this template (no frontmatter — pure markdown):
+1. Write the completed specification to ${TASK_FILE} (pure markdown, no frontmatter):
 
 ${TEMPLATE}
 
-   Fill in all {{...}} placeholders based on everything discussed. Be concrete about scope (specific files/dirs), acceptance criteria (testable conditions), and implementation notes.
+   Fill in all {{...}} placeholders. Be concrete about scope (specific files/dirs), acceptance criteria (testable conditions), and implementation notes.
 
 2. Update the \"status\" field in ${TASK_JSON} to \"waiting-for-spec-approval\".
 
-3. Display the full contents of ${TASK_FILE} in the conversation so the developer can review it.
+3. Display the full contents of ${TASK_FILE} in the conversation.
 
 4. Ask: 'Does this look right? Would you like to change anything, or shall I start implementation?'
 
-If the developer wants changes — update the discussion, rewrite ${TASK_FILE}, update ${TASK_JSON} status back to \"waiting-for-spec-approval\", display the spec again, and ask again.
+If the developer wants changes — update ${TASK_FILE}, keep status as \"waiting-for-spec-approval\", display again, and ask again.
 
-When the developer confirms they are happy and want implementation:
-- Update the \"status\" field in ${TASK_JSON} to \"waiting-for-coding\"
-- Let the developer know that implementation will start shortly after the session ends
+Do not write ${TASK_FILE} until the developer first asks you to.
 
-If the developer does not want to implement now — end the session normally (leave status as \"waiting-for-spec-approval\").
+── PHASE 2: IMPLEMENTATION (only when developer confirms) ───────────────────────
 
-Do not write ${TASK_FILE} until the developer first asks you to."
+When the developer confirms they want implementation, proceed immediately without leaving the session:
 
-# ── Launch interactive AI session ─────────────────────────────────────────────
+1. Update \"status\" in ${TASK_JSON} to \"waiting-for-coding\".
 
-read -ra AI_RUN <<< "${DA_AI_RUN:-claude}"
-"${AI_RUN[@]}" "$PROMPT"
+2. Verify the working tree is clean:
+   - Run: git status --porcelain
+   - If there are uncommitted changes, tell the developer and stop.
+
+3. Create and switch to the task branch:
+   - If branch '${TASK_ID}' exists: git checkout ${TASK_ID}
+   - Otherwise: git checkout -b ${TASK_ID}
+
+4. Update \"status\" in ${TASK_JSON} to \"coding-in-progress\".
+
+5. Implement the task based on the full context of this conversation and the spec in ${TASK_FILE}. Work autonomously — make your best judgment without asking for confirmation.
+
+6. Before committing — validate against the spec:
+   - Re-read the Acceptance Criteria section of ${TASK_FILE}
+   - Verify every criterion is met by the implementation
+   - Fix any gaps before proceeding
+
+7. Run tests if a test suite exists. Fix any failures before continuing.
+
+8. Run lint if available:
+   - If vendor/bin/da-lint exists: run it with --save-prompt .dev-agents-lint
+   - If lint fails, fix all reported issues and re-run to confirm clean
+
+9. Stage all changed files and commit with a conventional commit message (feat:, fix:, etc.).
+
+10. Push the branch:
+    git push -u origin ${TASK_ID}
+
+11. Create a pull request:
+    gh pr create --title \"${GOAL}\" --body \"\$(cat ${TASK_FILE})\" --head ${TASK_ID}
+
+12. Update \"status\" in ${TASK_JSON} to \"waiting-for-pr-review\". Commit and push this change.
+
+13. Tell the developer the PR is open and ready for review.
+
+If the developer does not want to implement now — update \"status\" to \"waiting-for-spec-approval\" and end the session normally."
+
+# ── Launch AI session ──────────────────────────────────────────────────────────
+
+read -ra AI_AUTO <<< "${DA_AI_AUTO:-claude --dangerously-skip-permissions}"
+"${AI_AUTO[@]}" "$PROMPT"
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
@@ -113,22 +152,28 @@ if [ ! -f "$TASK_FILE" ]; then
     exit 1
 fi
 
-# ── Check status and optionally start implementation ──────────────────────────
+# ── Post-session status check ──────────────────────────────────────────────────
 
 STATUS=$(grep '"status"' "$TASK_JSON" | sed 's/.*"status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
 
-if [ "$STATUS" = "waiting-for-coding" ]; then
-    echo ""
-    echo "▶ Starting implementation of ${TASK_ID}..."
-
-    DA_CODE_BIN="$(dirname "$0")/../code/da-code"
-    if [ ! -f "$DA_CODE_BIN" ]; then
-        DA_CODE_BIN="vendor/bin/da-code"
-    fi
-    exec "$DA_CODE_BIN" "$TASK_ID"
-else
-    echo ""
-    echo "✅ Spec saved: .tasks/${TASK_ID}/TASK.md"
-    echo "ℹ️  When ready to implement:"
-    echo "   make da-spec-approve TASK=${TASK_ID}"
-fi
+case "$STATUS" in
+    waiting-for-pr-review)
+        echo ""
+        echo "✅ Implementation complete. PR is open and ready for review."
+        echo "   make da-review TASK=${TASK_ID}"
+        ;;
+    waiting-for-coding|coding-in-progress)
+        # Session ended before implementation completed — run da-code as fallback
+        echo ""
+        echo "▶ Resuming implementation of ${TASK_ID}..."
+        DA_CODE_BIN="$(dirname "$0")/../code/da-code"
+        [ ! -f "$DA_CODE_BIN" ] && DA_CODE_BIN="vendor/bin/da-code"
+        exec "$DA_CODE_BIN" "$TASK_ID"
+        ;;
+    *)
+        echo ""
+        echo "✅ Spec saved: .tasks/${TASK_ID}/TASK.md"
+        echo "ℹ️  When ready to implement:"
+        echo "   make da-spec-approve TASK=${TASK_ID}"
+        ;;
+esac
