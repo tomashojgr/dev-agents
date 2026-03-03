@@ -51,7 +51,15 @@ class Installer
         $contents = file_get_contents($makefile);
 
         if (str_contains($contents, self::MAKEFILE_BLOCK_BEGIN)) {
-            $io->write('<info>dev-agents: Makefile already configured</info>');
+            if (str_contains($contents, self::MAKEFILE_BLOCK)) {
+                $io->write('<info>dev-agents: Makefile already up to date</info>');
+                return;
+            }
+            // Block exists but is outdated — replace it
+            $pattern = '/' . preg_quote(self::MAKEFILE_BLOCK_BEGIN, '/') . '.*?' . preg_quote(self::MAKEFILE_BLOCK_END, '/') . '/s';
+            $updated = preg_replace($pattern, self::MAKEFILE_BLOCK, $contents);
+            file_put_contents($makefile, $updated);
+            $io->write('<info>dev-agents: Updated dev-agents block in Makefile</info>');
             return;
         }
 
