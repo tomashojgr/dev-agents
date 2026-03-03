@@ -1,11 +1,12 @@
 # dev-agents
 
-Composer package for PHP 8.4 projects providing development workflow automation via specialized CLI agents built on [Claude Code](https://claude.ai/code).
+Composer package providing development workflow automation via AI-powered CLI agents. Agents are bash scripts — no PHP required on the host machine.
 
 ## Requirements
 
-- PHP 8.4+
-- [`claude` CLI](https://claude.ai/code) installed and authenticated (or another configured AI CLI – see Configuration)
+- [`claude` CLI](https://claude.ai/code) installed and authenticated on the host machine (or another configured AI CLI — see [Configuration](#configuration))
+- `gh` CLI for PR workflows (`da-code`, `da-review`)
+- `git`
 
 ## Installation
 
@@ -13,7 +14,17 @@ Composer package for PHP 8.4 projects providing development workflow automation 
 composer require --dev tomashojgr/dev-agents
 ```
 
-After install, `Makefile.agents` is automatically included in your project's `Makefile`.
+After install, a block is automatically appended to your project's `Makefile`:
+
+```makefile
+# BEGIN dev-agents — do not edit this block manually
+# Set to your AI CLI tool (e.g. 'codex exec' / 'codex' for OpenAI Codex):
+DA_AI_PRINT ?= claude --print
+DA_AI_RUN   ?= claude
+DA_AI_AUTO  ?= claude --dangerously-skip-permissions
+include vendor/tomashojgr/dev-agents/Makefile.agents
+# END dev-agents
+```
 
 > **Note:** Composer 2.2+ requires explicit plugin trust. Add this to your project's `composer.json`:
 > ```json
@@ -23,95 +34,87 @@ After install, `Makefile.agents` is automatically included in your project's `Ma
 >     }
 > }
 > ```
-> Or confirm interactively when Composer asks during `composer require`.
 
 ## Workflow
 
 ```bash
-# 1. Generate task specification
+# 1. Discuss the task interactively with the AI, then say "ok, zapiš to" to generate spec
 make da-spec TASK="add DKIM validation to email sender"
 
 # 2. Review .tasks/task-001-add-dkim-validation/TASK.md, then approve
 make da-approve TASK=task-001-add-dkim-validation
 
-# 3. Implement (launches Claude Code interactively)
+# 3. AI creates a branch, implements autonomously, pushes and opens a PR
 make da-code TASK=task-001-add-dkim-validation
 
-# 4. Stage changes, then commit
+# 4. Review the PR, leave comments. When ready, let the AI address them:
+make da-review TASK=task-001-add-dkim-validation
+
+# 5. Repeat step 4 until satisfied, then merge the PR
+
+# 6. Lint and fix — runs linters, auto-fixes style issues, then AI fixes the rest
+make da-lint-fix
+
+# 6b. Lint check only
+make da-lint
+
+# 7. Stage changes, then commit
 git add src/
 make da-commit TASK=task-001-add-dkim-validation
 
-# 5. Lint (check only)
-make da-lint
-
-# 5b. Lint and fix interactively with Claude Code (runs claude locally)
-make da-lint-fix
-
-# 6. Release
+# 8. Release
 make da-release
 ```
 
 ## Agents
 
-| Command | Binary | Description |
-|---------|--------|-------------|
-| `make da-spec TASK="..."` | `da-spec` | Generate `TASK.md` specification from a goal string |
-| `make da-approve TASK=...` | `da-approve` | Approve a task spec (sets `status: approved`) |
-| `make da-code TASK=...` | `da-code` | Launch Claude Code to implement an approved task |
-| `make da-commit TASK=...` | `da-commit` | Generate Conventional Commits message from staged diff |
-| `make da-lint` | `da-lint` | Run available PHP linters with AI error summary |
-| `make da-lint-fix` | — | Run linters in Docker, then launch Claude Code locally to fix issues |
-| `make da-release` | `da-release` | Bump semver, tag release with AI-generated changelog |
+| Command | Description |
+|---------|-------------|
+| `make da-spec TASK="..."` | Interactive discussion with AI to clarify requirements, then generates `TASK.md` |
+| `make da-approve TASK=...` | Review and approve a task spec (sets `status: approved`) |
+| `make da-code TASK=...` | Creates a task branch, implements autonomously, pushes and opens a PR |
+| `make da-review TASK=...` | Reads PR comments and addresses them autonomously, then pushes |
+| `make da-commit TASK=...` | Generate Conventional Commits message from staged diff |
+| `make da-lint` | Run available PHP linters |
+| `make da-lint-fix` | Run linters, auto-fix style issues via phpcbf, then AI fixes the rest |
+| `make da-release` | Bump semver, tag release with AI-generated changelog |
 
 ## Configuration
 
-`.dev-agents.json` is created automatically in your project root on install. All keys are optional — remove or leave any key at its default value.
-
-```json
-{
-    "ai": "claude",
-    "spec": {
-        "language": "en",
-        "default_scope": []
-    },
-    "lint": {
-        "phpstan": {
-            "cmd": null
-        },
-        "phpcs": {
-            "cmd": null
-        }
-    }
-}
-```
-
-| Key | Description | Values / example |
-|-----|-------------|-----------------|
-| `ai` | AI backend | `"claude"` (default), `"codex"`, or `"custom"` |
-| `ai_commands` | Custom AI commands — only when `"ai": "custom"` | `{"print": "my-ai --output", "interactive": "my-ai"}` |
-| `spec.language` | Language for generated task specs | `"en"`, `"cs"`, … |
-| `spec.default_scope` | Paths always included in new task Scope sections | `["src/", "tests/"]` |
-| `lint` | Override lint tool commands. If empty, tools are auto-detected from `vendor/bin`. | `{"phpstan": {"cmd": "vendor/bin/phpstan analyse"}}` |
-
-Lint config files (`phpstan.neon`, `.phpcs.xml`) are created in your project root on install alongside `.dev-agents.json`. Edit them directly to customise lint rules.
-
-### DA_PHP_CMD — how to run PHP
-
-`DA_PHP_CMD` controls how agents are launched from Make. It defaults to `php` but can be any command that runs PHP — including a full Docker or Make wrapper. Set it in your project's `Makefile` before the include line:
+AI commands and tool behaviour are configured via Makefile variables. Override them in your `Makefile` above the `BEGIN dev-agents` block:
 
 ```makefile
-# Local PHP binary with a version suffix
-DA_PHP_CMD := php84
+# Use OpenAI Codex instead of Claude
+DA_AI_PRINT = codex exec
+DA_AI_RUN   = codex
+DA_AI_AUTO  = codex exec
 
-# PHP inside a Docker Compose service
-DA_PHP_CMD := docker compose exec app php
-
-# PHP via a custom Make target
-DA_PHP_CMD := make bash cmd="php"
-
-include vendor/tomashojgr/dev-agents/Makefile.agents
+# BEGIN dev-agents — do not edit this block manually
+...
 ```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DA_AI_PRINT` | `claude --print` | Non-interactive AI call (returns output to stdout) |
+| `DA_AI_RUN` | `claude` | Interactive AI session (used by `da-spec`) |
+| `DA_AI_AUTO` | `claude --dangerously-skip-permissions` | Autonomous AI session without permission prompts (used by `da-code`, `da-review`) |
+
+Lint config files (`phpstan.neon`, `.phpcs.xml`) are created in your project root on install if the respective tools are present in `vendor/bin`. Edit them directly to customise lint rules.
 
 ## Task files
 
-Tasks are stored in `.tasks/<task-id>/TASK.md` in your project. Add `.tasks/` to `.gitignore` or commit them – your choice.
+Tasks are stored in `.tasks/<task-id>/TASK.md`. Add `.tasks/` to `.gitignore` or commit them — your choice.
+
+```
+.tasks/
+  task-001-add-dkim-validation/
+    TASK.md
+```
+
+### TASK.md lifecycle
+
+```
+draft → approved → done
+```
+
+`da-spec` creates tasks as `draft`. `da-approve` sets `approved`. `da-code` marks them `done` after implementation.
