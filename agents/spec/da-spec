@@ -83,8 +83,29 @@ if [ ! -f "$TASK_FILE" ]; then
 fi
 
 echo ""
-echo "✅ Task created: .tasks/${TASK_ID}/TASK.md"
+echo "✅ Spec saved: .tasks/${TASK_ID}/TASK.md"
 echo ""
-echo "Next steps:"
-echo "  Review:  cat .tasks/${TASK_ID}/TASK.md"
-echo "  Approve: make da-spec-approve TASK=${TASK_ID}"
+echo "────────────────────────────────────────────────────────────"
+cat "$TASK_FILE"
+echo "────────────────────────────────────────────────────────────"
+echo ""
+printf 'Start implementation now? [y/N] '
+read -r ANSWER
+ANSWER=$(printf '%s' "$ANSWER" | tr '[:upper:]' '[:lower:]')
+
+if [ "$ANSWER" = "y" ]; then
+    # Approve the spec
+    TMP=$(mktemp)
+    sed 's/^status:[[:space:]]*.*/status: approved/' "$TASK_FILE" > "$TMP"
+    mv "$TMP" "$TASK_FILE"
+
+    # Find and run da-code
+    DA_CODE_BIN="$(dirname "$0")/../code/da-code"
+    if [ ! -f "$DA_CODE_BIN" ]; then
+        DA_CODE_BIN="vendor/bin/da-code"
+    fi
+    exec "$DA_CODE_BIN" "$TASK_ID"
+else
+    echo "ℹ️  Spec saved as draft. Edit if needed, then:"
+    echo "   make da-spec-approve TASK=${TASK_ID}"
+fi
