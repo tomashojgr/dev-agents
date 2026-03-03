@@ -43,25 +43,28 @@ Three Makefile variables control which AI command is used:
 ## Task Lifecycle
 
 ```
-draft → approved → done
+spec-in-progress → waiting-for-spec-approval → waiting-for-coding
+  → coding-in-progress → waiting-for-pr-review
+  → review-in-progress → waiting-for-pr-review → ...
+  → task-completed
 ```
 
-Status is stored as a YAML frontmatter field in TASK.md:
-```
-status: draft | approved | done
+Status is stored in `task.json` (separate from TASK.md spec):
+```json
+{
+    "id": "task-001-example",
+    "status": "waiting-for-coding",
+    "created": "2025-01-01"
+}
 ```
 
-`da-code` only runs on `approved` tasks. It marks tasks as `done` after pushing the PR.
+`da-code` only runs on `waiting-for-coding` tasks. TASK.md contains pure markdown spec with no frontmatter.
 
 ## TASK.md Format
 
-```markdown
----
-id: task-001-example
-status: approved
-created: 2025-01-01
----
+Pure markdown, no frontmatter. Metadata lives in `task.json`.
 
+```markdown
 ## Goal
 One to two sentence description.
 

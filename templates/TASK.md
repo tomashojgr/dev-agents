@@ -1,9 +1,3 @@
----
-id: {{TASK_ID}}
-status: draft
-created: {{DATE}}
----
-
 ## Goal
 
 {{GOAL}}

@@ -39,15 +39,17 @@ include vendor/tomashojgr/dev-agents/Makefile.agents
 
 ```bash
 # 1. Discuss the task interactively with the AI, say "ok, zapiš to" to save the spec.
-#    The spec is displayed and you're asked: "Start implementation now? [y/N]"
+#    The AI displays the spec in the conversation and asks if you want to implement now.
+#    You can continue refining — the discussion stays open until you confirm.
+#    If you confirm, implementation starts automatically.
 make da-spec TASK="add DKIM validation to email sender"
 
 # 2. AI creates a branch, implements autonomously, runs lint, pushes and opens a PR
-#    (runs automatically if you answered "y" in step 1, or manually otherwise)
-make da-code TASK=task-001-add-dkim-validation
+#    (starts automatically after step 1 if confirmed, or run manually with task number/name)
+make da-code TASK=1
 
 # 3. Review the PR, leave comments. When ready, let the AI address them:
-make da-review TASK=task-001-add-dkim-validation
+make da-review TASK=1
 
 # 4. Repeat step 3 until satisfied, then merge the PR
 
@@ -59,7 +61,7 @@ make da-release
 
 | Command | Description |
 |---------|-------------|
-| `make da-spec TASK="..."` | Interactive discussion with AI, generates `TASK.md`, then offers to start implementation |
+| `make da-spec TASK="..."` | Interactive discussion with AI, generates and displays `TASK.md` in-conversation, then offers to start implementation (context preserved throughout) |
 | `make da-code TASK=...` | Creates a task branch, implements autonomously, runs lint, pushes and opens a PR |
 | `make da-review TASK=...` | Reads PR comments and addresses them autonomously, then pushes |
 | `make da-release` | Bumps semver, tags release with AI-generated changelog, pushes |
@@ -70,7 +72,7 @@ These agents are useful outside the main workflow — for manual development, ad
 
 | Command | Description |
 |---------|-------------|
-| `make da-spec-approve TASK=...` | Approve a manually written task spec (sets `status: approved`) |
+| `make da-spec-approve TASK=...` | Approve a manually written task spec (sets status to `waiting-for-coding`) |
 | `make da-lint-fix` | Run linters, auto-fix style issues via phpcbf, then AI fixes remaining issues |
 | `make da-lint` | Run available PHP linters (check only, no fixes) |
 | `make da-commit TASK=...` | Generate a Conventional Commits message from staged diff — useful when committing manual changes |
@@ -101,18 +103,30 @@ Lint config files (`phpstan.neon`, `.phpcs.xml`) are created in your project roo
 
 ## Task files
 
-Tasks are stored in `.tasks/<task-id>/TASK.md`. Add `.tasks/` to `.gitignore` or commit them — your choice.
+Tasks are stored in `.tasks/<task-id>/`. Add `.tasks/` to `.gitignore` or commit them — your choice.
 
 ```
 .tasks/
   task-001-add-dkim-validation/
-    TASK.md
+    TASK.md      ← spec (pure markdown, no metadata)
+    task.json    ← lifecycle metadata (status, id, created)
 ```
 
-### TASK.md lifecycle
+All agents accept a flexible `TASK` argument — use the task number, a substring of the name, or the full ID:
+
+```bash
+make da-code TASK=1           # by number
+make da-code TASK=dkim        # by substring
+make da-code TASK=task-001-add-dkim-validation  # full ID
+```
+
+### Task lifecycle
 
 ```
-draft → approved → done
+spec-in-progress → waiting-for-spec-approval → waiting-for-coding
+  → coding-in-progress → waiting-for-pr-review
+  → review-in-progress → waiting-for-pr-review → ...
+  → task-completed
 ```
 
-`da-spec` creates tasks as `draft`, then sets `approved` if you confirm immediate implementation. `da-spec-approve` is available for manually written specs. `da-code` marks tasks `done` after implementation.
+Status is tracked in `task.json` (separate from the spec). Each agent updates it automatically — you can always see where a task stands at a glance.
