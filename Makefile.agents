@@ -4,6 +4,7 @@
 AGENTS_BIN  := vendor/bin
 DA_AI_PRINT ?= claude --print
 DA_AI_RUN   ?= claude
+DA_AI_AUTO  ?= claude --dangerously-skip-permissions
 
 # ── Task management ───────────────────────────────────────────────────────────
 
@@ -34,6 +35,11 @@ da-lint: ## Run lint agent.
 .PHONY: da-lint-fix
 da-lint-fix: ## Run linters and launch AI agent to fix issues interactively.
 	$(AGENTS_BIN)/da-lint --save-prompt .dev-agents-lint || $(DA_AI_RUN) "$$(cat .dev-agents-lint)"
+
+.PHONY: da-review
+da-review: ## Address PR review comments autonomously. Usage: make da-review TASK=task-001-dkim-validation
+	@test -n "$(TASK)" || (echo '❌ TASK is required. Usage: make da-review TASK=task-001-dkim-validation' && exit 1)
+	$(AGENTS_BIN)/da-review "$(TASK)"
 
 .PHONY: da-release
 da-release: ## Run release agent.

@@ -15,7 +15,6 @@ if [ ! -f "$TASK_FILE" ]; then
 fi
 
 STATUS=$(grep -m1 '^status:' "$TASK_FILE" | sed 's/^status:[[:space:]]*//' || echo "draft")
-
 if [ "$STATUS" != "approved" ]; then
     echo "❌ Task is not approved (status: ${STATUS})"
     echo "   Run: make da-approve TASK=${TASK_ID}"
@@ -29,16 +28,24 @@ fi
 
 DIRTY=$(git status --porcelain)
 if [ -n "$DIRTY" ]; then
-    echo "⚠️  Working tree has uncommitted changes:"
+    echo "❌ Working tree has uncommitted changes. Commit or stash them first."
     git status --short
-    printf 'Proceed anyway? [y/N] '
-    read -r ANSWER
-    ANSWER=$(printf '%s' "$ANSWER" | tr '[:upper:]' '[:lower:]')
-    if [ "$ANSWER" != "y" ]; then
-        echo "❌ Aborted. Commit or stash changes first."
-        exit 1
-    fi
+    exit 1
 fi
+
+# ── Create task branch ─────────────────────────────────────────────────────────
+
+BRANCH="$TASK_ID"
+
+if git show-ref --verify --quiet "refs/heads/${BRANCH}"; then
+    echo "ℹ️  Branch '${BRANCH}' already exists, switching to it."
+    git checkout "$BRANCH"
+else
+    git checkout -b "$BRANCH"
+    echo "ℹ️  Created branch '${BRANCH}'"
+fi
+
+# ── Build prompt ───────────────────────────────────────────────────────────────
 
 TASK_CONTENTS=$(cat "$TASK_FILE")
 GOAL=$(awk '/^## Goal/{found=1; next} found && /^## /{exit} found && NF{print; exit}' "$TASK_FILE")
@@ -48,26 +55,30 @@ if [ -f "CLAUDE.md" ]; then
     CLAUDE_MD_CONTEXT=$(cat "CLAUDE.md")
 fi
 
-PROMPT="You are an expert PHP developer implementing a well-defined task.
+PROMPT="You are an expert developer implementing a well-defined task on a feature branch.
 
 ${CLAUDE_MD_CONTEXT}
 
-Implement the following task exactly as specified. Follow the acceptance criteria. Stay within the defined scope. Do not make changes outside the scope.
+Work fully autonomously — do not ask for confirmation or clarification, make your best judgment based on the specification.
 
 When done:
-1. Run any tests if a test suite exists
-2. Stage only files within the task scope with git add
-3. Report what was implemented
+1. Run tests if a test suite exists and fix any failures
+2. Stage all changed files with git add
+3. Commit using conventional commit messages (feat:, fix:, etc.)
+4. Do NOT push or create a PR — the calling script handles that
 
 TASK SPECIFICATION:
 ${TASK_CONTENTS}"
 
-echo "🚀 Starting AI coding agent for task: ${TASK_ID}"
+# ── Launch AI agent ────────────────────────────────────────────────────────────
+
+echo "🚀 Starting autonomous implementation of: ${TASK_ID}"
 echo "   Goal: ${GOAL}"
+echo "   Branch: ${BRANCH}"
 echo ""
 
-read -ra AI_RUN <<< "${DA_AI_RUN:-claude}"
-"${AI_RUN[@]}" "$PROMPT"
+read -ra AI_AUTO <<< "${DA_AI_AUTO:-claude --dangerously-skip-permissions}"
+"${AI_AUTO[@]}" "$PROMPT"
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
@@ -76,13 +87,32 @@ if [ $EXIT_CODE -ne 0 ]; then
     exit $EXIT_CODE
 fi
 
+# ── Push branch and create PR ──────────────────────────────────────────────────
+
+echo ""
+echo "▶ Pushing branch..."
+git push -u origin "$BRANCH"
+
+echo "▶ Creating pull request..."
+
+# Build PR body from TASK.md (strip YAML frontmatter)
+PR_BODY=$(awk 'BEGIN{f=0} /^---/{f++; next} f>=2{print}' "$TASK_FILE")
+
+gh pr create \
+    --title "$GOAL" \
+    --body "$PR_BODY" \
+    --head "$BRANCH"
+
+# ── Mark task as done ──────────────────────────────────────────────────────────
+
 TMP=$(mktemp)
 sed 's/^status:[[:space:]]*.*/status: done/' "$TASK_FILE" > "$TMP"
 mv "$TMP" "$TASK_FILE"
 
+git add "$TASK_FILE"
+git commit -m "chore: mark ${TASK_ID} as done" 2>/dev/null || true
+git push 2>/dev/null || true
+
 echo ""
-echo "✅ Task marked as done: ${TASK_ID}"
-echo ""
-echo "Next steps:"
-echo "  git add <files>"
-echo "  make da-commit TASK=${TASK_ID}"
+echo "✅ Done. PR created for branch '${BRANCH}'."
+echo "   Review, comment, and when ready: make da-review TASK=${TASK_ID}"

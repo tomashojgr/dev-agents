@@ -15,6 +15,7 @@ class Installer
         "# Set to your AI CLI tool (e.g. 'codex exec' / 'codex' for OpenAI Codex):\n" .
         "DA_AI_PRINT ?= claude --print\n" .
         "DA_AI_RUN   ?= claude\n" .
+        "DA_AI_AUTO  ?= claude --dangerously-skip-permissions\n" .
         "include vendor/tomashojgr/dev-agents/Makefile.agents\n" .
         self::MAKEFILE_BLOCK_END;
     private const MAKEFILE = 'Makefile';
